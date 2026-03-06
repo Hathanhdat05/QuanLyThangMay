@@ -1,0 +1,209 @@
+import { useEffect, useState, useCallback } from 'react';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
+import 'moment/locale/vi';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { Typography, Card, Tag, Modal, Descriptions, Spin, message, Select, Space } from 'antd';
+import { api } from '../../lib/api';
+
+moment.locale('vi');
+const localizer = momentLocalizer(moment);
+
+const { Title } = Typography;
+
+const PRIORITY_COLORS = {
+  low: '#52c41a',
+  medium: '#1677ff',
+  high: '#fa8c16',
+  critical: '#ff4d4f',
+};
+
+const STATUS_MAP = {
+  pending: 'Chờ xử lý',
+  in_progress: 'Đang xử lý',
+  resolved: 'Đã xử lý',
+  closed: 'Đã đóng',
+};
+
+const TYPE_MAP = {
+  maintenance: 'Bảo trì',
+  warranty: 'Bảo hành',
+};
+
+const PRIORITY_MAP = {
+  low: 'Thấp',
+  medium: 'Trung bình',
+  high: 'Cao',
+  critical: 'Nghiêm trọng',
+};
+
+function formatDateDMY(value) {
+  if (!value) return '-';
+  const m = moment(value);
+  if (!m.isValid()) return '-';
+  return m.format('DD-MM-YYYY');
+}
+
+export default function MaintenanceCalendar() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState(null);
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    const path = typeFilter ? `/error-reports?type=${typeFilter}` : '/error-reports';
+    const { data, error } = await api.get(path);
+    if (error) {
+      message.error('Lỗi tải dữ liệu lịch');
+      setLoading(false);
+      return;
+    }
+    const list = Array.isArray(data) ? data : [];
+    const withScheduled = list.filter((r) => r.scheduled_date);
+    const mapped = withScheduled.map((report) => ({
+      id: report.id,
+      title: report.title,
+      start: new Date(report.scheduled_date),
+      end: new Date(report.scheduled_date),
+      allDay: true,
+      resource: report,
+    }));
+    setEvents(mapped);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, [typeFilter]);
+
+  const handleSelectEvent = useCallback((event) => {
+    setSelectedEvent(event.resource);
+    setModalOpen(true);
+  }, []);
+
+  const eventStyleGetter = useCallback((event) => {
+    const priority = event.resource?.priority || 'medium';
+    return {
+      style: {
+        backgroundColor: PRIORITY_COLORS[priority] || PRIORITY_COLORS.medium,
+        borderRadius: 4,
+        opacity: event.resource?.status === 'closed' ? 0.5 : 1,
+        color: '#fff',
+        border: 'none',
+        fontSize: 12,
+      },
+    };
+  }, []);
+
+  const messages = {
+    today: 'Hôm nay',
+    previous: 'Trước',
+    next: 'Sau',
+    month: 'Tháng',
+    week: 'Tuần',
+    day: 'Ngày',
+    agenda: 'Lịch trình',
+    noEventsInRange: 'Không có sự kiện nào trong khoảng thời gian này.',
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          Lịch Bảo trì
+        </Title>
+        <Space>
+          <Select
+            placeholder="Lọc loại"
+            allowClear
+            style={{ width: 160 }}
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[
+              { value: 'maintenance', label: 'Bảo trì' },
+              { value: 'warranty', label: 'Bảo hành' },
+            ]}
+          />
+        </Space>
+      </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Space>
+          <span>Mức độ:</span>
+          {Object.entries(PRIORITY_MAP).map(([key, label]) => (
+            <Tag key={key} color={PRIORITY_COLORS[key]}>
+              {label}
+            </Tag>
+          ))}
+        </Space>
+      </Card>
+
+      <Spin spinning={loading}>
+        <div style={{ height: 650 }}>
+          <Calendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            onSelectEvent={handleSelectEvent}
+            eventPropGetter={eventStyleGetter}
+            messages={messages}
+            views={['month', 'week', 'day', 'agenda']}
+            defaultView="month"
+            popup
+          />
+        </div>
+      </Spin>
+
+      <Modal
+        title="Chi tiết báo lỗi"
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+        width={600}
+      >
+        {selectedEvent && (
+          <Descriptions column={2} bordered size="small">
+            <Descriptions.Item label="Tiêu đề" span={2}>
+              {selectedEvent.title}
+            </Descriptions.Item>
+            <Descriptions.Item label="Loại">
+              <Tag color={selectedEvent.type === 'warranty' ? 'orange' : 'blue'}>
+                {TYPE_MAP[selectedEvent.type]}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Mức độ">
+              <Tag color={PRIORITY_COLORS[selectedEvent.priority]}>{PRIORITY_MAP[selectedEvent.priority]}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Trạng thái">
+              {STATUS_MAP[selectedEvent.status]}
+            </Descriptions.Item>
+            <Descriptions.Item label="Thang máy">
+              {selectedEvent.elevators?.name || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Khách hàng">
+              {selectedEvent.customers?.name || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Hợp đồng">
+              {selectedEvent.contracts?.contract_number || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Ngày báo cáo">
+              {formatDateDMY(selectedEvent.reported_date)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Ngày hẹn">
+              {formatDateDMY(selectedEvent.scheduled_date)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Ngày hoàn thành">
+              {formatDateDMY(selectedEvent.completed_date)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Mô tả" span={2}>
+              {selectedEvent.description || '-'}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
+    </div>
+  );
+}

@@ -1,0 +1,26 @@
+{
+  "name": "thangmay3-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed:elevators": "node src/scripts/seedElevators.js",
+    "seed:customers": "node src/scripts/seedCustomers.js",
+    "seed:customers:reset": "node src/scripts/seedCustomers.js --reset --count 100",
+    "seed:products": "node src/scripts/seedProducts.js",
+    "seed:products:reset": "node src/scripts/seedProducts.js --reset --count 100",
+    "seed:contracts": "node src/scripts/seedContracts.js",
+    "seed:contracts:reset": "node src/scripts/seedContracts.js --reset --count 50"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.0",
+    "multer": "^2.0.2"
+  }
+}
