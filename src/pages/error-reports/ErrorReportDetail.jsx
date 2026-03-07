@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Descriptions, Spin, Typography, Button, Space, Tag, message } from 'antd';
+import { Card, Descriptions, Spin, Typography, Button, Space, Tag, message, Table } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../lib/api';
@@ -26,6 +26,9 @@ const PRIORITY_MAP = {
   high: { label: 'Cao', color: 'orange' },
   critical: { label: 'Nghiêm trọng', color: 'red' },
 };
+
+const formatCurrency = (val) =>
+  val != null ? `${Number(val).toLocaleString('vi-VN')} đ` : '-';
 
 export default function ErrorReportDetail() {
   const [report, setReport] = useState(null);
@@ -75,6 +78,41 @@ export default function ErrorReportDetail() {
   const typeCfg = TYPE_MAP[report.type];
   const statusCfg = STATUS_MAP[report.status];
   const priorityCfg = PRIORITY_MAP[report.priority];
+  const items = report.items || [];
+  const totalAmount = items.reduce((sum, it) => sum + (Number(it.line_total) || 0), 0);
+  const isWarranty = report.type === 'warranty';
+
+  const productColumns = [
+    {
+      title: 'Tên vật phẩm',
+      dataIndex: 'product_name',
+      key: 'product_name',
+      render: (val, record) => (val ? `${val}${record.product_unit ? ` (${record.product_unit})` : ''}` : '-'),
+    },
+    {
+      title: 'Số lượng',
+      dataIndex: 'quantity',
+      key: 'quantity',
+      align: 'right',
+      width: 100,
+    },
+    {
+      title: 'Đơn giá',
+      dataIndex: 'unit_price',
+      key: 'unit_price',
+      align: 'right',
+      render: (v) => formatCurrency(v),
+      width: 140,
+    },
+    {
+      title: 'Thành tiền',
+      dataIndex: 'line_total',
+      key: 'line_total',
+      align: 'right',
+      render: (v) => formatCurrency(v),
+      width: 140,
+    },
+  ];
 
   return (
     <div>
@@ -92,7 +130,7 @@ export default function ErrorReportDetail() {
         )}
       </Space>
 
-      <Card>
+      <Card title="Thông tin chung" style={{ marginBottom: 16 }}>
         <Descriptions column={2} bordered size="middle">
           <Descriptions.Item label="ID báo lỗi" span={1}>
             {report.errorId || '-'}
@@ -119,6 +157,13 @@ export default function ErrorReportDetail() {
           <Descriptions.Item label="Thang máy" span={1}>
             {report.elevators?.name || '-'}
           </Descriptions.Item>
+          <Descriptions.Item label="Loại thang máy cần bảo trì" span={1}>
+            {report.elevators?.type ? (
+              <Tag color="blue">{report.elevators.type}</Tag>
+            ) : (
+              report.elevators?.brand ? `${report.elevators.brand}` : '-'
+            )}
+          </Descriptions.Item>
           <Descriptions.Item label="Hợp đồng" span={1}>
             {report.contracts?.contract_number || '-'}
           </Descriptions.Item>
@@ -135,6 +180,34 @@ export default function ErrorReportDetail() {
             {report.description || '-'}
           </Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card
+        title="Vật phẩm / Giá thành"
+        extra={
+          <span style={{ fontWeight: 600 }}>
+            Tổng tiền: {isWarranty ? '0 đ (bảo hành)' : formatCurrency(totalAmount)}
+          </span>
+        }
+      >
+        {items.length > 0 ? (
+          <>
+            <Table
+              columns={productColumns}
+              dataSource={items}
+              rowKey={(_, i) => i}
+              pagination={false}
+              size="small"
+            />
+            {!isWarranty && (
+              <div style={{ marginTop: 16, textAlign: 'right', fontWeight: 600 }}>
+                Tổng cộng: {formatCurrency(totalAmount)}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ color: '#999' }}>Chưa có vật phẩm nào.</div>
+        )}
       </Card>
     </div>
   );

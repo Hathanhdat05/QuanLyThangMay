@@ -116,13 +116,21 @@ export default function ErrorReportForm() {
       const contractNumberFromReport = data.contracts?.contract_number;
       const errorIdFromReport = data.errorId || data.id || null;
 
-      form.setFieldsValue({
+      const formValues = {
         ...data,
         errorId: errorIdFromReport,
         reported_date: data.reported_date ? dayjs(data.reported_date) : null,
         scheduled_date: data.scheduled_date ? dayjs(data.scheduled_date) : null,
         completed_date: data.completed_date ? dayjs(data.completed_date) : null,
-      });
+      };
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        formValues.items = data.items.map((it) => ({
+          product_id: it.product_id,
+          quantity: it.quantity ?? 1,
+          unit_price: it.unit_price ?? 0,
+        }));
+      }
+      form.setFieldsValue(formValues);
       setSelectedCustomerId(data.customer_id || null);
       setSelectedContractId(contractIdFromReport);
 

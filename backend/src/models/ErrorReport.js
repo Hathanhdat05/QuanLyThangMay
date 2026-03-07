@@ -1,5 +1,14 @@
 import mongoose from 'mongoose';
 
+const errorReportItemSchema = new mongoose.Schema(
+  {
+    product_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    quantity: { type: Number, default: 1 },
+    unit_price: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
 const schema = new mongoose.Schema(
   {
     errorId: { type: String, default: null, unique: true, sparse: true, index: true },
@@ -15,6 +24,7 @@ const schema = new mongoose.Schema(
     reported_date: { type: Date, default: Date.now },
     scheduled_date: { type: Date },
     completed_date: { type: Date },
+    items: [errorReportItemSchema],
   },
   { timestamps: true, toJSON: { virtuals: true } }
 );

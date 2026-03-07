@@ -28,6 +28,14 @@ async function generateUniqueErrorId() {
   return `BL${datePart}-${fallback}`;
 }
 
+/** Ánh xạ trạng thái báo lỗi sang trạng thái hợp đồng (bảo trì/bảo hành) */
+const ERROR_STATUS_TO_CONTRACT_STATUS = {
+  pending: 'draft',
+  in_progress: 'active',
+  resolved: 'completed',
+  closed: 'completed',
+};
+
 function toResponse(doc) {
   if (!doc) return null;
   const d = doc.toJSON ? doc.toJSON() : doc;
@@ -94,18 +102,34 @@ router.get('/new-id', async (_req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const doc = await ErrorReport.findById(req.params.id)
-      .populate('elevator_id', 'name')
+      .populate('elevator_id', 'name type brand')
       .populate('customer_id', 'name')
       .populate('contract_id', 'contract_number')
+      .populate('items.product_id', 'name unit price')
       .lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const out = { ...doc, id: doc._id?.toHexString(), _id: undefined };
-    out.elevators = doc.elevator_id ? { name: doc.elevator_id.name } : null;
+    out.elevators = doc.elevator_id
+      ? { name: doc.elevator_id.name, type: doc.elevator_id.type, brand: doc.elevator_id.brand }
+      : null;
     out.customers = doc.customer_id ? { name: doc.customer_id.name } : null;
     out.contracts = doc.contract_id ? { contract_number: doc.contract_id.contract_number } : null;
     out.elevator_id = doc.elevator_id?._id?.toHexString?.() ?? doc.elevator_id;
     out.customer_id = doc.customer_id?._id?.toHexString?.() ?? doc.customer_id;
     out.contract_id = doc.contract_id?._id?.toHexString?.() ?? doc.contract_id;
+    out.items = (doc.items || []).map((it) => {
+      const productId = it.product_id?._id?.toHexString?.() ?? it.product_id?.toString?.() ?? it.product_id;
+      const quantity = it.quantity ?? 1;
+      const unitPrice = it.unit_price ?? 0;
+      return {
+        product_id: productId,
+        product_name: it.product_id?.name,
+        product_unit: it.product_id?.unit,
+        quantity,
+        unit_price: unitPrice,
+        line_total: quantity * unitPrice,
+      };
+    });
     return res.json(out);
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -124,7 +148,7 @@ router.post('/', async (req, res) => {
     });
     await doc.save();
 
-    // Tự động tạo hợp đồng bảo trì / bảo hành tương ứng sau khi tạo báo lỗi
+    // Luôn tạo hợp đồng bảo trì/bảo hành tương ứng và đẩy vào danh sách Hợp đồng
     try {
       if (body.customer_id) {
         const contract_number = await generateNextContractNumber();
@@ -133,7 +157,7 @@ router.post('/', async (req, res) => {
         const endDate = body.completed_date || null;
 
         const elevatorItems =
-          body.elevator_id && body.contract_id
+          body.elevator_id
             ? [
                 {
                   item_type: 'elevator',
@@ -177,18 +201,16 @@ router.post('/', async (req, res) => {
           end_date: endDate || undefined,
           status: 'draft',
           total_value: totalValue,
-          notes: body.description || body.title || '',
+          notes: (body.description || body.title || '').trim() || `Báo lỗi: ${body.title || contract_number}`,
           items,
         });
 
         await contract.save();
 
-        // Gắn lại id hợp đồng vào báo lỗi
         doc.contract_id = contract._id;
         await doc.save();
       }
     } catch (e) {
-      // Nếu tạo hợp đồng thất bại thì vẫn trả về báo lỗi bình thường
       // eslint-disable-next-line no-console
       console.error('Failed to auto-create contract for error report', e);
     }
@@ -212,6 +234,7 @@ router.put('/:id', async (req, res) => {
     const body = { ...req.body };
     delete body.reported_by;
     delete body.errorId;
+    const newStatus = body.status;
     const doc = await ErrorReport.findByIdAndUpdate(req.params.id, body, {
       new: true,
       runValidators: true,
@@ -219,12 +242,31 @@ router.put('/:id', async (req, res) => {
       .populate('elevator_id', 'name')
       .populate('customer_id', 'name')
       .populate('contract_id', 'contract_number')
+      .populate('items.product_id', 'name unit')
       .lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
+    if (doc.contract_id && newStatus && ERROR_STATUS_TO_CONTRACT_STATUS[newStatus]) {
+      const contractId = doc.contract_id?._id ?? doc.contract_id;
+      if (contractId) {
+        await Contract.findByIdAndUpdate(
+          contractId,
+          { status: ERROR_STATUS_TO_CONTRACT_STATUS[newStatus] },
+          { runValidators: true }
+        );
+      }
+    }
     const out = { ...doc, id: doc._id?.toHexString(), _id: undefined };
     out.elevators = doc.elevator_id ? { name: doc.elevator_id.name } : null;
     out.customers = doc.customer_id ? { name: doc.customer_id.name } : null;
     out.contracts = doc.contract_id ? { contract_number: doc.contract_id.contract_number } : null;
+    out.elevator_id = doc.elevator_id?._id?.toHexString?.() ?? doc.elevator_id;
+    out.customer_id = doc.customer_id?._id?.toHexString?.() ?? doc.customer_id;
+    out.contract_id = doc.contract_id?._id?.toHexString?.() ?? doc.contract_id;
+    out.items = (doc.items || []).map((it) => ({
+      product_id: it.product_id?._id?.toHexString?.() ?? it.product_id?.toString?.() ?? it.product_id,
+      quantity: it.quantity ?? 1,
+      unit_price: it.unit_price ?? 0,
+    }));
     return res.json(out);
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -239,14 +281,17 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const doc = await ErrorReport.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    )
-      .select('status _id')
-      .lean();
-    if (!doc) return res.status(404).json({ error: 'Not found' });
+    const report = await ErrorReport.findById(req.params.id).select('contract_id').lean();
+    if (!report) return res.status(404).json({ error: 'Not found' });
+
+    await ErrorReport.findByIdAndUpdate(req.params.id, { status }, { runValidators: true });
+
+    if (report.contract_id) {
+      const contractStatus = ERROR_STATUS_TO_CONTRACT_STATUS[status] || 'draft';
+      await Contract.findByIdAndUpdate(report.contract_id, { status: contractStatus }, { runValidators: true });
+    }
+
+    const doc = await ErrorReport.findById(req.params.id).select('status _id').lean();
     return res.json({ id: doc._id?.toHexString(), status: doc.status });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });

@@ -11,7 +11,9 @@
     "seed:products": "node src/scripts/seedProducts.js",
     "seed:products:reset": "node src/scripts/seedProducts.js --reset --count 100",
     "seed:contracts": "node src/scripts/seedContracts.js",
-    "seed:contracts:reset": "node src/scripts/seedContracts.js --reset --count 50"
+    "seed:contracts:reset": "node src/scripts/seedContracts.js --reset --count 50",
+    "seed:error-reports": "node src/scripts/seedErrorReports.js",
+    "seed:error-reports:reset": "node src/scripts/seedErrorReports.js --reset --count 15"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
