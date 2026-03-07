@@ -88,7 +88,7 @@ router.get('/', async (req, res) => {
       .populate('contract_id', 'contract_number')
       .populate('elevator_id', 'name')
       .populate('customer_id', 'name')
-      .sort({ scheduled_date: -1 })
+      .sort({ scheduled_date: 1 })
       .lean();
 
     const data = list.map((o) => {

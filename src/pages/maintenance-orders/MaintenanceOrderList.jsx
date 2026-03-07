@@ -75,12 +75,13 @@ export default function MaintenanceOrderList() {
       dataIndex: 'scheduled_date',
       key: 'scheduled_date',
       width: 130,
+      defaultSortOrder: 'ascend',
       render: (v) => {
         if (!v) return '-';
         const d = dayjs(v);
         return d.isValid() ? d.format('DD-MM-YYYY') : '-';
       },
-      sorter: (a, b) => (a.scheduled_date || '').localeCompare(b.scheduled_date || ''),
+      sorter: (a, b) => (new Date(a.scheduled_date) || 0) - (new Date(b.scheduled_date) || 0),
     },
     {
       title: 'Trạng thái',
