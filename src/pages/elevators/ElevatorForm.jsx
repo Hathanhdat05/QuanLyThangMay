@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, Space, Spin, InputNumber, message, Select, Upload } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { api, BASE_URL } from '../../lib/api';
+import { api, BASE_URL, getImageUrl } from '../../lib/api';
 import { ELEVATOR_TYPES, ELEVATOR_BRANDS } from '../../constants/elevators';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 const { TextArea } = Input;
-
-const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
 
 export default function ElevatorForm() {
   const [form] = Form.useForm();
@@ -49,7 +47,7 @@ export default function ElevatorForm() {
               uid: '-1',
               name: 'image',
               status: 'done',
-              url: `${API_ORIGIN}${data.image_url}`,
+              url: getImageUrl(data.image_url),
             },
           ]);
         }
@@ -209,13 +207,12 @@ export default function ElevatorForm() {
                 try {
                   const image_url = await uploadImage(file);
                   form.setFieldsValue({ image_url });
-                  const absolute = `${API_ORIGIN}${image_url}`;
                   setImageFileList([
                     {
                       uid: String(Date.now()),
                       name: file.name || 'image',
                       status: 'done',
-                      url: absolute,
+                      url: getImageUrl(image_url),
                     },
                   ]);
                   onSuccess?.({ image_url });

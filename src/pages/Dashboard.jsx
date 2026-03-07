@@ -225,12 +225,12 @@ export default function Dashboard() {
           ))}
         </Row>
         <Row gutter={[16, 16]}>
-          <Col xs={24} lg={14}>
+          <Col xs={24}>
             <Card>
               <Skeleton active paragraph={{ rows: 5 }} />
             </Card>
           </Col>
-          <Col xs={24} lg={10}>
+          <Col xs={24}>
             <Card>
               <Skeleton active paragraph={{ rows: 5 }} />
             </Card>
@@ -311,7 +311,7 @@ export default function Dashboard() {
       </Row>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={14}>
+        <Col xs={24}>
           <Card
             title={
               <Space>
@@ -337,7 +337,7 @@ export default function Dashboard() {
             />
           </Card>
         </Col>
-        <Col xs={24} lg={10}>
+        <Col xs={24}>
           <Card
             title={
               <Space>

@@ -1,5 +1,20 @@
 export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+/** Origin của API server (không có /api), dùng cho URL ảnh upload. Khi deploy, cần set VITE_API_URL đúng để ảnh load. */
+export const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
+
+/**
+ * Trả về URL đầy đủ cho ảnh (upload). Nếu url đã là absolute thì dùng nguyên, không thì ghép với API_ORIGIN.
+ */
+export function getImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${API_ORIGIN}${path}`;
+}
+
 function getToken() {
   return localStorage.getItem('auth_token');
 }

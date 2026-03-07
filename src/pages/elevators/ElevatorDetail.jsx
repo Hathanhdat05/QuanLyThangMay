@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, Descriptions, Spin, Typography, Button, Space, message, Image } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
-import { api, BASE_URL } from '../../lib/api';
+import { api, getImageUrl } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
-
-const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
 
 export default function ElevatorDetail() {
   const [elevator, setElevator] = useState(null);
@@ -75,9 +73,10 @@ export default function ElevatorDetail() {
         {elevator.image_url && (
           <div style={{ marginBottom: 24 }}>
             <Image
-              src={`${API_ORIGIN}${elevator.image_url}`}
+              src={getImageUrl(elevator.image_url)}
               alt={elevator.name}
               style={{ maxHeight: 300, objectFit: 'contain' }}
+              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect fill='%23f0f0f0' width='200' height='150'/%3E%3Ctext fill='%23999' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='14'%3EThang máy%3C/text%3E%3C/svg%3E"
             />
           </div>
         )}
