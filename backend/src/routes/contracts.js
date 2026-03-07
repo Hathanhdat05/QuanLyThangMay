@@ -52,7 +52,8 @@ async function generateMaintenanceScheduleForContract(contractId) {
 
     const periodEnd = addMonths(endDate, maintenanceMonths);
     const dates = [];
-    let d = new Date(endDate);
+    // Lịch bảo trì gần nhất = ngày hoàn thành + 1 chu kỳ (vd: 21/3 + 1 tháng → 21/4)
+    let d = addMonths(new Date(endDate), frequencyMonths);
     d.setHours(0, 0, 0, 0);
     while (d <= periodEnd) {
       dates.push(new Date(d));
