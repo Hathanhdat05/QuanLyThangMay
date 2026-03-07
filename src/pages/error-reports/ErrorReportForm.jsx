@@ -12,6 +12,7 @@ import {
   DatePicker,
   message,
   InputNumber,
+  Alert,
 } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -31,6 +32,7 @@ export default function ErrorReportForm() {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [elevatorOptions, setElevatorOptions] = useState([]);
+  const [elevatorMaintenanceEndDates, setElevatorMaintenanceEndDates] = useState({});
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, isAdmin } = useAuth();
@@ -66,6 +68,7 @@ export default function ErrorReportForm() {
   const loadContractElevators = async (contractId, initialElevatorId = null) => {
     if (!contractId) {
       setElevatorOptions([]);
+      setElevatorMaintenanceEndDates({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -74,6 +77,7 @@ export default function ErrorReportForm() {
     if (error || !data) {
       message.error('Không thể lấy thông tin hợp đồng');
       setElevatorOptions([]);
+      setElevatorMaintenanceEndDates({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -84,6 +88,7 @@ export default function ErrorReportForm() {
     if (!elevatorItems.length) {
       message.warning('Hợp đồng này chưa có thang máy gắn kèm. Vui lòng kiểm tra lại dữ liệu hợp đồng.');
       setElevatorOptions([]);
+      setElevatorMaintenanceEndDates({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -92,6 +97,12 @@ export default function ErrorReportForm() {
       value: it.elevator_id,
       label: it.elevator?.name || it.elevator_id,
     }));
+
+    const maintenanceEndMap = {};
+    elevatorItems.forEach((it) => {
+      if (it.elevator_id) maintenanceEndMap[it.elevator_id] = it.elevator?.maintenance_end_date || null;
+    });
+    setElevatorMaintenanceEndDates(maintenanceEndMap);
 
     setElevatorOptions(options);
 
@@ -102,6 +113,23 @@ export default function ErrorReportForm() {
       form.setFieldsValue({ elevator_id: options[0].value });
     } else {
       form.setFieldsValue({ elevator_id: null });
+    }
+
+    const elevatorId = initialElevatorId || form.getFieldValue('elevator_id');
+    const reportedDateVal = form.getFieldValue('reported_date');
+    const endDateVal = elevatorId ? maintenanceEndMap[elevatorId] : null;
+    const inPeriod =
+      endDateVal &&
+      reportedDateVal &&
+      dayjs(endDateVal).endOf('day').valueOf() >= dayjs(reportedDateVal).startOf('day').valueOf();
+    if (inPeriod) {
+      const currentItems = form.getFieldValue('items') || [];
+      if (currentItems.length) {
+        const next = currentItems.map((it) =>
+          it && it.product_id ? { ...it, unit_price: 0 } : it
+        );
+        form.setFieldsValue({ items: next });
+      }
     }
   };
 
@@ -174,6 +202,23 @@ export default function ErrorReportForm() {
 
       await loadContractElevators(contractId);
     }
+
+    if ('elevator_id' in changedValues || 'reported_date' in changedValues) {
+      const elevatorId = changedValues.elevator_id ?? form.getFieldValue('elevator_id');
+      const reportedDate = changedValues.reported_date ?? form.getFieldValue('reported_date');
+      const endDate = elevatorId ? elevatorMaintenanceEndDates[elevatorId] : null;
+      const inPeriod =
+        endDate &&
+        reportedDate &&
+        dayjs(endDate).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
+      if (inPeriod) {
+        const items = form.getFieldValue('items') || [];
+        if (items.length) {
+          const next = items.map((it) => (it && it.product_id ? { ...it, unit_price: 0 } : it));
+          form.setFieldsValue({ items: next });
+        }
+      }
+    }
   };
 
   const customerIdsWithContracts = new Set(
@@ -211,15 +256,20 @@ export default function ErrorReportForm() {
     label: c.contract_number,
   }));
 
+  const selectedElevatorId = Form.useWatch('elevator_id', form);
+  const reportedDate = Form.useWatch('reported_date', form);
+  const maintenanceEndDate = selectedElevatorId ? elevatorMaintenanceEndDates[selectedElevatorId] : null;
+  const inMaintenancePeriod =
+    Boolean(maintenanceEndDate && reportedDate) &&
+    dayjs(maintenanceEndDate).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
+
   const formItems = Form.useWatch('items', form) || [];
-  const currentType = Form.useWatch('type', form) || 'maintenance';
-  const isWarranty = currentType === 'warranty';
-  const totalAmount = !isWarranty
-    ? formItems.reduce(
+  const totalAmount = inMaintenancePeriod
+    ? 0
+    : formItems.reduce(
         (sum, it) => sum + (Number(it?.quantity) || 0) * (Number(it?.unit_price) || 0),
         0
-      )
-    : 0;
+      );
 
   const onFinish = async (values) => {
     setSaving(true);
@@ -229,7 +279,7 @@ export default function ErrorReportForm() {
       contract_id: values.contract_id || null,
       title: values.title,
       description: values.description || '',
-      type: values.type || 'maintenance',
+      type: 'maintenance',
       status: values.status || 'pending',
       priority: values.priority || 'medium',
       reported_date: values.reported_date?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'),
@@ -292,7 +342,6 @@ export default function ErrorReportForm() {
         onFinish={onFinish}
         onValuesChange={handleValuesChange}
         initialValues={{
-          type: 'maintenance',
           status: 'pending',
           priority: 'medium',
           reported_date: dayjs(),
@@ -315,16 +364,7 @@ export default function ErrorReportForm() {
             <TextArea rows={4} placeholder="Mô tả chi tiết lỗi / yêu cầu bảo trì" />
           </Form.Item>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            <Form.Item name="type" label="Loại">
-              <Select
-                options={[
-                  { value: 'maintenance', label: 'Bảo trì' },
-                  { value: 'warranty', label: 'Bảo hành' },
-                ]}
-              />
-            </Form.Item>
-
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="priority" label="Mức độ ưu tiên">
               <Select
                 options={[
@@ -397,6 +437,14 @@ export default function ErrorReportForm() {
         </Card>
 
         <Card title="Sản phẩm" style={{ marginBottom: 24 }}>
+          {inMaintenancePeriod && (
+            <Alert
+              type="info"
+              message="Thang máy đang trong thời gian bảo trì của hợp đồng — không tính tiền vật tư."
+              style={{ marginBottom: 16 }}
+              showIcon
+            />
+          )}
           <Form.List name="items">
             {(fields, { add, remove }) => (
               <>
@@ -426,8 +474,7 @@ export default function ErrorReportForm() {
                           const nextItems = [...currentItems];
                           const row = { ...(nextItems[field.name] || {}) };
                           row.product_id = value;
-                          // Đơn giá lấy từ database, bảo hành thì luôn 0
-                          row.unit_price = isWarranty ? 0 : product?.price ?? 0;
+                          row.unit_price = inMaintenancePeriod ? 0 : product?.price ?? 0;
                           if (!row.quantity) row.quantity = 1;
                           nextItems[field.name] = row;
                           form.setFieldsValue({ items: nextItems });
@@ -446,16 +493,12 @@ export default function ErrorReportForm() {
                     <Form.Item
                       name={[field.name, 'unit_price']}
                       label={index === 0 ? 'Đơn giá' : ''}
-                      rules={
-                        isWarranty
-                          ? []
-                          : [{ required: true, message: 'Nhập đơn giá cho sản phẩm' }]
-                      }
+                      rules={inMaintenancePeriod ? [] : [{ required: true, message: 'Nhập đơn giá cho sản phẩm' }]}
                     >
                       <InputNumber
                         min={0}
                         style={{ width: '100%' }}
-                        disabled={isWarranty}
+                        disabled={inMaintenancePeriod}
                         formatter={(value) =>
                           value != null
                             ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -467,13 +510,13 @@ export default function ErrorReportForm() {
 
                     <Form.Item label={index === 0 ? 'Thành tiền' : ''}>
                       <div style={{ lineHeight: '32px' }}>
-                        {(() => {
-                          const row = formItems?.[field.name] || {};
-                          const amount = !isWarranty
-                            ? (Number(row.quantity) || 0) * (Number(row.unit_price) || 0)
-                            : 0;
-                          return amount ? `${amount.toLocaleString('vi-VN')} đ` : '-';
-                        })()}
+                        {inMaintenancePeriod
+                          ? '0 đ'
+                          : (() => {
+                              const row = formItems?.[field.name] || {};
+                              const amount = (Number(row.quantity) || 0) * (Number(row.unit_price) || 0);
+                              return amount ? `${amount.toLocaleString('vi-VN')} đ` : '-';
+                            })()}
                       </div>
                     </Form.Item>
 
@@ -499,10 +542,7 @@ export default function ErrorReportForm() {
 
                 <div style={{ marginTop: 16, textAlign: 'right' }}>
                   <strong>
-                    Tổng tiền:{' '}
-                    {!isWarranty
-                      ? `${totalAmount.toLocaleString('vi-VN')} đ`
-                      : '0 đ (bảo hành - không tính tiền)'}
+                    Tổng tiền: {inMaintenancePeriod ? '0 đ (trong thời gian bảo trì)' : `${totalAmount.toLocaleString('vi-VN')} đ`}
                   </strong>
                 </div>
               </>

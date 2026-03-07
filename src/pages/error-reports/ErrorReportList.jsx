@@ -8,11 +8,6 @@ import { useAuth } from '../../hooks/useAuth';
 
 const { Title } = Typography;
 
-const TYPE_MAP = {
-  maintenance: { label: 'Bảo trì', color: 'blue' },
-  warranty: { label: 'Bảo hành', color: 'orange' },
-};
-
 const STATUS_MAP = {
   pending: { label: 'Chờ xử lý', color: 'default' },
   in_progress: { label: 'Đang xử lý', color: 'processing' },
@@ -32,7 +27,6 @@ export default function ErrorReportList() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(null);
-  const [typeFilter, setTypeFilter] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const navigate = useNavigate();
@@ -43,7 +37,6 @@ export default function ErrorReportList() {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
-    if (typeFilter) params.set('type', typeFilter);
     const path = params.toString() ? `/error-reports?${params}` : '/error-reports';
     const { data, error } = await api.get(path);
     if (error) {
@@ -56,7 +49,7 @@ export default function ErrorReportList() {
 
   useEffect(() => {
     fetchReports();
-  }, [search, statusFilter, typeFilter]);
+  }, [search, statusFilter]);
 
   const handleDelete = async (id) => {
     const { error } = await api.delete(`/error-reports/${id}`);
@@ -119,16 +112,6 @@ export default function ErrorReportList() {
         ),
     },
     { title: 'Tiêu đề', dataIndex: 'title', key: 'title', ellipsis: true },
-    {
-      title: 'Loại',
-      dataIndex: 'type',
-      key: 'type',
-      width: 120,
-      render: (v) => {
-        const t = TYPE_MAP[v] || { label: v, color: 'default' };
-        return <Tag color={t.color}>{t.label}</Tag>;
-      },
-    },
     {
       title: 'Mức độ',
       dataIndex: 'priority',
@@ -260,14 +243,6 @@ export default function ErrorReportList() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
-        />
-        <Select
-          placeholder="Lọc loại"
-          allowClear
-          style={{ width: 140 }}
-          value={typeFilter}
-          onChange={setTypeFilter}
-          options={Object.entries(TYPE_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
         />
       </Space>
 

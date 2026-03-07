@@ -4,6 +4,7 @@ import { Contract } from '../models/Contract.js';
 import { Product } from '../models/Product.js';
 import { Elevator } from '../models/Elevator.js';
 import { ErrorReport } from '../models/ErrorReport.js';
+import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
@@ -14,9 +15,8 @@ router.get('/', async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
 
-    const [customersCount, contractsCount, productsCount, elevatorsCount, recentReports, upcomingReports] =
+    const [customersCount, contractsCount, productsCount, elevatorsCount, recentReports, upcomingSchedules] =
       await Promise.all([
         Customer.countDocuments(),
         Contract.countDocuments(),
@@ -28,9 +28,10 @@ router.get('/', async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(10)
           .lean(),
-        ErrorReport.find({ scheduled_date: { $gte: new Date(todayStr), $ne: null } })
-          .populate('elevator_id', 'name')
-          .populate('customer_id', 'name')
+        MaintenanceSchedule.find({
+          scheduled_date: { $gte: today },
+          status: { $ne: 'cancelled' },
+        })
           .sort({ scheduled_date: 1 })
           .limit(5)
           .lean(),
@@ -43,6 +44,15 @@ router.get('/', async (req, res) => {
       return out;
     };
 
+    const mapSchedule = (s) => {
+      const out = { ...s, id: s._id?.toHexString(), _id: undefined };
+      out.elevators = s.elevator_name ? { name: s.elevator_name } : null;
+      out.customers = s.customer_name ? { name: s.customer_name } : null;
+      return out;
+    };
+
+    const upcomingEvents = upcomingSchedules.map(mapSchedule);
+
     return res.json({
       stats: {
         customers: customersCount,
@@ -50,10 +60,10 @@ router.get('/', async (req, res) => {
         products: productsCount,
         elevators: elevatorsCount,
         pendingReports: recentReports.length,
-        upcomingMaintenance: upcomingReports.length,
+        upcomingMaintenance: upcomingEvents.length,
       },
       recentReports: recentReports.map(mapReport),
-      upcomingEvents: upcomingReports.map(mapReport),
+      upcomingEvents,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });

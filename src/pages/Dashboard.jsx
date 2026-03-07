@@ -44,11 +44,6 @@ const PRIORITY_MAP = {
   critical: { label: 'Nghiêm trọng', color: 'red' },
 };
 
-const TYPE_MAP = {
-  maintenance: { label: 'Bảo trì', color: 'blue' },
-  warranty: { label: 'Bảo hành', color: 'orange' },
-};
-
 const STAT_CARD_CONFIG = [
   {
     key: 'customers',
@@ -161,16 +156,6 @@ export default function Dashboard() {
       ),
     },
     {
-      title: 'Loại',
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (v) => {
-        const t = TYPE_MAP[v] || { label: v, color: 'default' };
-        return <Tag color={t.color}>{t.label}</Tag>;
-      },
-    },
-    {
       title: 'Mức độ',
       dataIndex: 'priority',
       key: 'priority',
@@ -198,7 +183,15 @@ export default function Dashboard() {
   ];
 
   const upcomingColumns = [
-    { title: 'Tiêu đề', dataIndex: 'title', key: 'title', ellipsis: true },
+    {
+      title: 'Tiêu đề',
+      dataIndex: 'title',
+      key: 'title',
+      ellipsis: true,
+      render: (text, record) => (
+        <a onClick={() => navigate(`/maintenance-orders/schedule/${record.id}/detail`)}>{text}</a>
+      ),
+    },
     {
       title: 'Ngày hẹn',
       dataIndex: 'scheduled_date',
@@ -353,7 +346,7 @@ export default function Dashboard() {
               </Space>
             }
             extra={
-              <Button type="link" size="small" onClick={() => navigate('/maintenance-calendar')} style={{ padding: 0 }}>
+              <Button type="link" size="small" onClick={() => navigate('/maintenance-orders')} style={{ padding: 0 }}>
                 Xem tất cả <RightOutlined />
               </Button>
             }

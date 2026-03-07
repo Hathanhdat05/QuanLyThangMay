@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Layout as AntLayout, Menu, Button, Dropdown, Avatar, Typography, theme } from 'antd';
+import { Layout as AntLayout, Menu, Button, Dropdown, Avatar, Typography, theme, Badge } from 'antd';
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -9,22 +9,35 @@ import {
   ToolOutlined,
   WarningOutlined,
   CalendarOutlined,
+  FormOutlined,
   UserOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../hooks/useAuth';
+import { api } from '../lib/api';
 
 const { Header, Sider, Content } = AntLayout;
 const { Text } = Typography;
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, isAdmin } = useAuth();
   const { token } = theme.useToken();
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/notifications?limit=20').then(({ data, error }) => {
+      if (!isMounted || error) return;
+      setNotifications(Array.isArray(data) ? data : []);
+    });
+    return () => { isMounted = false; };
+  }, [location.pathname]);
 
   const menuItems = [
     {
@@ -61,6 +74,11 @@ export default function Layout() {
       key: '/maintenance-calendar',
       icon: <CalendarOutlined />,
       label: 'Lịch bảo trì',
+    },
+    {
+      key: '/maintenance-orders',
+      icon: <FormOutlined />,
+      label: 'Đơn bảo trì',
     },
     ...(isAdmin
       ? [
@@ -188,6 +206,60 @@ export default function Layout() {
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Dropdown
+              trigger={['click']}
+              dropdownRender={() => (
+                <div
+                  style={{
+                    background: token.colorBgContainer,
+                    borderRadius: token.borderRadiusLG,
+                    boxShadow: token.boxShadowSecondary,
+                    minWidth: 320,
+                    maxWidth: 400,
+                    maxHeight: 400,
+                    overflow: 'auto',
+                  }}
+                >
+                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: 600 }}>
+                    Thông báo
+                  </div>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: token.colorTextSecondary }}>
+                      Chưa có thông báo
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (n.type === 'maintenance_due' && n.elevator_id) {
+                            navigate(`/elevators/${n.elevator_id}`);
+                          } else if (n.type === 'maintenance_contract_expired' && n.contract_id) {
+                            navigate(`/contracts/${n.contract_id}/detail`);
+                          }
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && (n.type === 'maintenance_due' ? navigate(`/elevators/${n.elevator_id}`) : navigate(`/contracts/${n.contract_id}/detail`))}
+                        style={{
+                          padding: '12px 16px',
+                          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontWeight: 500, marginBottom: 4 }}>{n.title}</div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{n.message}</Text>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            >
+              <Badge count={notifications.length} size="small" offset={[-2, 2]}>
+                <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
+              </Badge>
+            </Dropdown>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
             <div
               style={{
@@ -206,6 +278,7 @@ export default function Layout() {
               </span>
             </div>
           </Dropdown>
+          </div>
         </Header>
 
         <Content

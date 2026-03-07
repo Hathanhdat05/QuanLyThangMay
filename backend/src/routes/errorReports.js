@@ -2,6 +2,9 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { Contract } from '../models/Contract.js';
+import { Elevator } from '../models/Elevator.js';
+import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
+import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { generateNextContractNumber } from '../utils/contractNumber.js';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
 
@@ -35,6 +38,18 @@ const ERROR_STATUS_TO_CONTRACT_STATUS = {
   resolved: 'completed',
   closed: 'completed',
 };
+
+/** Kiểm tra thang máy còn trong thời gian bảo trì tại ngày tham chiếu (không tính tiền vật tư). */
+async function isElevatorInMaintenancePeriod(elevatorId, referenceDate) {
+  if (!elevatorId) return false;
+  const elevator = await Elevator.findById(elevatorId).select('maintenance_end_date').lean();
+  if (!elevator?.maintenance_end_date) return false;
+  const ref = referenceDate ? new Date(referenceDate) : new Date();
+  ref.setUTCHours(23, 59, 59, 999);
+  const end = new Date(elevator.maintenance_end_date);
+  end.setUTCHours(23, 59, 59, 999);
+  return end >= ref;
+}
 
 function toResponse(doc) {
   if (!doc) return null;
@@ -142,6 +157,19 @@ router.post('/', async (req, res) => {
     if (!body.errorId) {
       body.errorId = await generateUniqueErrorId();
     }
+
+    const inMaintenancePeriod = await isElevatorInMaintenancePeriod(
+      body.elevator_id,
+      body.reported_date
+    );
+    if (inMaintenancePeriod && Array.isArray(body.items)) {
+      body.items = body.items.map((it) =>
+        it && it.product_id
+          ? { ...it, unit_price: 0 }
+          : it
+      );
+    }
+
     const doc = new ErrorReport({
       ...body,
       reported_by: req.userId || body.reported_by,
@@ -202,6 +230,7 @@ router.post('/', async (req, res) => {
           status: 'draft',
           total_value: totalValue,
           notes: (body.description || body.title || '').trim() || `Báo lỗi: ${body.title || contract_number}`,
+          created_from_error_report_id: doc._id,
           items,
         });
 
@@ -234,6 +263,17 @@ router.put('/:id', async (req, res) => {
     const body = { ...req.body };
     delete body.reported_by;
     delete body.errorId;
+
+    const inMaintenancePeriod = await isElevatorInMaintenancePeriod(
+      body.elevator_id,
+      body.reported_date
+    );
+    if (inMaintenancePeriod && Array.isArray(body.items)) {
+      body.items = body.items.map((it) =>
+        it && it.product_id ? { ...it, unit_price: 0 } : it
+      );
+    }
+
     const newStatus = body.status;
     const doc = await ErrorReport.findByIdAndUpdate(req.params.id, body, {
       new: true,
@@ -300,8 +340,28 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
 
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    const doc = await ErrorReport.findByIdAndDelete(req.params.id);
+    const doc = await ErrorReport.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
+
+    const contractId = doc.contract_id;
+    if (contractId) {
+      const contract = await Contract.findById(contractId).select('created_from_error_report_id').lean();
+      const wasCreatedFromThisReport =
+        contract?.created_from_error_report_id?.toString() === doc._id?.toString();
+      if (wasCreatedFromThisReport) {
+        const scheduleIds = await MaintenanceSchedule.find({ contract_id: contractId })
+          .select('_id')
+          .lean();
+        const ids = (scheduleIds || []).map((s) => s._id);
+        if (ids.length > 0) {
+          await MaintenanceOrder.deleteMany({ maintenance_schedule_id: { $in: ids } });
+          await MaintenanceSchedule.deleteMany({ contract_id: contractId });
+        }
+        await Contract.findByIdAndDelete(contractId);
+      }
+    }
+
+    await ErrorReport.findByIdAndDelete(req.params.id);
     return res.status(204).send();
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });

@@ -93,9 +93,20 @@ export default function ProductList() {
       width: 140,
       sorter: (a, b) => (a.productId || '').localeCompare(b.productId || ''),
       render: (val, record) => {
-        const id = val || record?.id;
-        if (!id) return <span style={{ color: '#999' }}>-</span>;
-        return <span style={{ whiteSpace: 'normal' }}>{String(id)}</span>;
+        const displayId = val || record?.id;
+        const rowId = record?.id;
+        if (!displayId) return <span style={{ color: '#999' }}>-</span>;
+        if (!rowId) return <span style={{ whiteSpace: 'normal' }}>{String(displayId)}</span>;
+        return (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/products/${rowId}/detail`)}
+            style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}
+          >
+            {String(displayId)}
+          </Button>
+        );
       },
     },
     {

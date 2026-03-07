@@ -11,6 +11,10 @@ const schema = new mongoose.Schema(
     speed: { type: Number, default: 0 },
     description: { type: String, default: '' },
     image_url: { type: String, default: '' },
+    maintenance_start_date: { type: Date, default: null },
+    maintenance_end_date: { type: Date, default: null },
+    maintenance_months: { type: Number, default: null },
+    maintenance_frequency_per_month: { type: Number, default: 1, min: 1, max: 36 }, // tháng/lần (số tháng giữa mỗi lần bảo trì)
   },
   { timestamps: true, toJSON: { virtuals: true } }
 );

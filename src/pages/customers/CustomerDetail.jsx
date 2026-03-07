@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, Descriptions, Spin, Typography, Button, Space, message } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import { api } from '../../lib/api';
@@ -11,8 +11,13 @@ export default function CustomerDetail() {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const { isAdmin } = useAuth();
+  const fromMaintenanceCalendar = location.state?.fromMaintenanceCalendar;
+  const fromErrorReportId = location.state?.fromErrorReportId;
+  const returnToCalendarWithErrorReportId = location.state?.returnToCalendarWithErrorReportId;
+  const returnToCalendarWithScheduleId = location.state?.returnToCalendarWithScheduleId;
 
   useEffect(() => {
     let isMounted = true;
@@ -23,7 +28,20 @@ export default function CustomerDetail() {
       if (!isMounted) return;
       if (error || !data) {
         message.error('Không tìm thấy khách hàng');
-        navigate('/customers');
+        navigate(returnToCalendarWithScheduleId
+          ? '/maintenance-calendar'
+          : returnToCalendarWithErrorReportId
+            ? '/maintenance-calendar'
+            : fromErrorReportId
+              ? `/error-reports/${fromErrorReportId}/detail`
+              : fromMaintenanceCalendar
+                ? '/maintenance-calendar'
+                : '/customers',
+        returnToCalendarWithScheduleId
+          ? { state: { openScheduleId: returnToCalendarWithScheduleId } }
+          : returnToCalendarWithErrorReportId
+            ? { state: { openErrorReportId: returnToCalendarWithErrorReportId } }
+            : undefined);
         return;
       }
       setCustomer(data);
@@ -48,7 +66,25 @@ export default function CustomerDetail() {
   return (
     <div>
       <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/customers')}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() =>
+            navigate(returnToCalendarWithScheduleId
+              ? '/maintenance-calendar'
+              : returnToCalendarWithErrorReportId
+                ? '/maintenance-calendar'
+                : fromErrorReportId
+                  ? `/error-reports/${fromErrorReportId}/detail`
+                  : fromMaintenanceCalendar
+                    ? '/maintenance-calendar'
+                    : '/customers',
+            returnToCalendarWithScheduleId
+              ? { state: { openScheduleId: returnToCalendarWithScheduleId } }
+              : returnToCalendarWithErrorReportId
+                ? { state: { openErrorReportId: returnToCalendarWithErrorReportId } }
+                : undefined)
+          }
+        >
           Quay lại
         </Button>
         <Title level={4} style={{ margin: 0 }}>

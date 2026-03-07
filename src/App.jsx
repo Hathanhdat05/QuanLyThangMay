@@ -9,8 +9,10 @@ import CustomerForm from './pages/customers/CustomerForm';
 import CustomerDetail from './pages/customers/CustomerDetail';
 import ProductList from './pages/products/ProductList';
 import ProductForm from './pages/products/ProductForm';
+import ProductDetail from './pages/products/ProductDetail';
 import ElevatorList from './pages/elevators/ElevatorList';
 import ElevatorForm from './pages/elevators/ElevatorForm';
+import ElevatorDetail from './pages/elevators/ElevatorDetail';
 import ContractList from './pages/contracts/ContractList';
 import ContractForm from './pages/contracts/ContractForm';
 import ContractDetail from './pages/contracts/ContractDetail';
@@ -18,6 +20,8 @@ import ErrorReportList from './pages/error-reports/ErrorReportList';
 import ErrorReportForm from './pages/error-reports/ErrorReportForm';
 import ErrorReportDetail from './pages/error-reports/ErrorReportDetail';
 import MaintenanceCalendar from './pages/maintenance-calendar/MaintenanceCalendar';
+import MaintenanceOrderList from './pages/maintenance-orders/MaintenanceOrderList';
+import MaintenanceOrderDetail from './pages/maintenance-orders/MaintenanceOrderDetail';
 import UserList from './pages/users/UserList';
 import UserForm from './pages/users/UserForm';
 
@@ -42,10 +46,12 @@ export default function App() {
           <Route path="/customers/:id" element={<ProtectedRoute adminOnly><CustomerForm /></ProtectedRoute>} />
 
           <Route path="/products" element={<ProductList />} />
+          <Route path="/products/:id/detail" element={<ProductDetail />} />
           <Route path="/products/new" element={<ProtectedRoute adminOnly><ProductForm /></ProtectedRoute>} />
           <Route path="/products/:id" element={<ProtectedRoute adminOnly><ProductForm /></ProtectedRoute>} />
 
           <Route path="/elevators" element={<ElevatorList />} />
+          <Route path="/elevators/:id/detail" element={<ElevatorDetail />} />
           <Route path="/elevators/new" element={<ProtectedRoute adminOnly><ElevatorForm /></ProtectedRoute>} />
           <Route path="/elevators/:id" element={<ProtectedRoute adminOnly><ElevatorForm /></ProtectedRoute>} />
 
@@ -60,6 +66,9 @@ export default function App() {
           <Route path="/error-reports/:id" element={<ErrorReportForm />} />
 
           <Route path="/maintenance-calendar" element={<MaintenanceCalendar />} />
+          <Route path="/maintenance-orders" element={<MaintenanceOrderList />} />
+          <Route path="/maintenance-orders/schedule/:scheduleId/detail" element={<MaintenanceOrderDetail />} />
+          <Route path="/maintenance-orders/:id/detail" element={<MaintenanceOrderDetail />} />
 
           <Route path="/users" element={<ProtectedRoute adminOnly><UserList /></ProtectedRoute>} />
           <Route path="/users/new" element={<ProtectedRoute adminOnly><UserForm /></ProtectedRoute>} />

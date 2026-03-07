@@ -130,6 +130,8 @@ router.post('/', requireAdmin, async (req, res) => {
   try {
     const body = { ...(req.body || {}) };
     if (!body.elevatorId) body.elevatorId = await generateUniqueElevatorId();
+    delete body.maintenance_start_date;
+    delete body.maintenance_end_date;
     const doc = new Elevator(body);
     await doc.save();
     return res.status(201).json(doc.toJSON());
@@ -145,6 +147,9 @@ router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const update = { ...(req.body || {}) };
     delete update.elevatorId; // system-generated; do not allow changing via update
+    // maintenance_start_date / maintenance_end_date chỉ được set khi hợp đồng lắp đặt hoàn thành
+    delete update.maintenance_start_date;
+    delete update.maintenance_end_date;
 
     const doc = await Elevator.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, Descriptions, Spin, Typography, Button, Space, Tag, message, Table } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -7,11 +7,6 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
 
 const { Title } = Typography;
-
-const TYPE_MAP = {
-  maintenance: { label: 'Bảo trì', color: 'blue' },
-  warranty: { label: 'Bảo hành', color: 'orange' },
-};
 
 const STATUS_MAP = {
   pending: { label: 'Chờ xử lý', color: 'default' },
@@ -34,8 +29,10 @@ export default function ErrorReportDetail() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const { isAdmin } = useAuth();
+  const fromContractId = location.state?.fromContractId;
 
   const formatDate = (val) => {
     if (!val) return '-';
@@ -75,12 +72,13 @@ export default function ErrorReportDetail() {
     );
   }
 
-  const typeCfg = TYPE_MAP[report.type];
   const statusCfg = STATUS_MAP[report.status];
   const priorityCfg = PRIORITY_MAP[report.priority];
   const items = report.items || [];
   const totalAmount = items.reduce((sum, it) => sum + (Number(it.line_total) || 0), 0);
-  const isWarranty = report.type === 'warranty';
+  const isWarranty = report.contracts?.contract_type === 'warranty';
+  const customerId = report.customer_id || report.customers?.id;
+  const contractId = report.contract_id || report.contracts?.id;
 
   const productColumns = [
     {
@@ -117,7 +115,14 @@ export default function ErrorReportDetail() {
   return (
     <div>
       <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/error-reports')}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() =>
+            fromContractId
+              ? navigate(`/contracts/${fromContractId}/detail`, { replace: true })
+              : navigate('/error-reports')
+          }
+        >
           Quay lại
         </Button>
         <Title level={4} style={{ margin: 0 }}>
@@ -138,9 +143,6 @@ export default function ErrorReportDetail() {
           <Descriptions.Item label="Tiêu đề" span={1}>
             {report.title || '-'}
           </Descriptions.Item>
-          <Descriptions.Item label="Loại" span={1}>
-            {typeCfg ? <Tag color={typeCfg.color}>{typeCfg.label}</Tag> : report.type || '-'}
-          </Descriptions.Item>
           <Descriptions.Item label="Trạng thái" span={1}>
             {statusCfg ? <Tag color={statusCfg.color}>{statusCfg.label}</Tag> : report.status || '-'}
           </Descriptions.Item>
@@ -152,7 +154,20 @@ export default function ErrorReportDetail() {
             )}
           </Descriptions.Item>
           <Descriptions.Item label="Khách hàng" span={1}>
-            {report.customers?.name || '-'}
+            {customerId ? (
+              <Button
+                type="link"
+                size="small"
+                onClick={() =>
+                  navigate(`/customers/${customerId}/detail`, { state: { fromErrorReportId: id } })
+                }
+                style={{ padding: 0 }}
+              >
+                {report.customers?.name || '-'}
+              </Button>
+            ) : (
+              report.customers?.name || '-'
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="Thang máy" span={1}>
             {report.elevators?.name || '-'}
@@ -165,7 +180,20 @@ export default function ErrorReportDetail() {
             )}
           </Descriptions.Item>
           <Descriptions.Item label="Hợp đồng" span={1}>
-            {report.contracts?.contract_number || '-'}
+            {contractId ? (
+              <Button
+                type="link"
+                size="small"
+                onClick={() =>
+                  navigate(`/contracts/${contractId}/detail`, { state: { fromErrorReportId: id } })
+                }
+                style={{ padding: 0 }}
+              >
+                {report.contracts?.contract_number || '-'}
+              </Button>
+            ) : (
+              report.contracts?.contract_number || '-'
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="Ngày báo cáo" span={1}>
             {formatDate(report.reported_date)}

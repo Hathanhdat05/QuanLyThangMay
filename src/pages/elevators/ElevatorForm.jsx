@@ -4,6 +4,7 @@ import { Form, Input, Button, Card, Typography, Space, Spin, InputNumber, messag
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { api, BASE_URL } from '../../lib/api';
 import { ELEVATOR_TYPES, ELEVATOR_BRANDS } from '../../constants/elevators';
+import dayjs from 'dayjs';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -32,7 +33,16 @@ export default function ElevatorForm() {
           navigate('/elevators');
           return;
         }
-        form.setFieldsValue(data);
+        const maintenanceMonths =
+          data.maintenance_months != null && data.maintenance_months >= 1
+            ? data.maintenance_months
+            : data.maintenance_start_date && data.maintenance_end_date
+              ? Math.round(dayjs(data.maintenance_end_date).diff(dayjs(data.maintenance_start_date), 'month', true))
+              : undefined;
+        form.setFieldsValue({
+          ...data,
+          maintenance_months: maintenanceMonths > 0 ? maintenanceMonths : undefined,
+        });
         if (data.image_url) {
           setImageFileList([
             {
@@ -84,9 +94,16 @@ export default function ElevatorForm() {
   };
 
   const onFinish = async (values) => {
+    const payload = { ...values };
+    // Chỉ gửi số tháng bảo trì; start/end chỉ được set khi hợp đồng lắp đặt hoàn thành
+    if (values.maintenance_months != null && values.maintenance_months >= 1) {
+      payload.maintenance_months = Number(values.maintenance_months);
+    } else {
+      payload.maintenance_months = null;
+    }
     setSaving(true);
     if (isEdit) {
-      const { error } = await api.put(`/elevators/${id}`, values);
+      const { error } = await api.put(`/elevators/${id}`, payload);
       if (error) {
         message.error('Lỗi cập nhật thang máy');
       } else {
@@ -94,7 +111,7 @@ export default function ElevatorForm() {
         navigate('/elevators');
       }
     } else {
-      const { error } = await api.post('/elevators', values);
+      const { error } = await api.post('/elevators', payload);
       if (error) {
         message.error('Lỗi thêm thang máy');
       } else {
@@ -125,7 +142,7 @@ export default function ElevatorForm() {
       </Space>
 
       <Card style={{ maxWidth: 700 }}>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ capacity: 0, speed: 0 }}>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ capacity: 0, speed: 0, maintenance_frequency_per_month: 1, maintenance_months: undefined }}>
           <Form.Item name="elevatorId" label="ID thang máy">
             <Input placeholder="Hệ thống tự tạo" disabled />
           </Form.Item>
@@ -213,11 +230,52 @@ export default function ElevatorForm() {
           </Form.Item>
 
           <Form.Item name="capacity" label="Tải trọng (kg)">
-            <InputNumber style={{ width: '100%' }} min={0} placeholder="Nhập tải trọng" />
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              placeholder="Nhập tải trọng"
+              onFocus={() => {
+                const v = form.getFieldValue('capacity');
+                if (v === 0 || v === '0') form.setFieldValue('capacity', undefined);
+              }}
+              onBlur={() => {
+                const v = form.getFieldValue('capacity');
+                if (v === undefined || v === null || v === '') form.setFieldValue('capacity', 0);
+              }}
+            />
           </Form.Item>
 
           <Form.Item name="speed" label="Tốc độ (m/s)">
-            <InputNumber style={{ width: '100%' }} min={0} step={0.1} placeholder="Nhập tốc độ" />
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              step={0.1}
+              placeholder="Nhập tốc độ"
+              onFocus={() => {
+                const v = form.getFieldValue('speed');
+                if (v === 0 || v === '0' || v === 0.0) form.setFieldValue('speed', undefined);
+              }}
+              onBlur={() => {
+                const v = form.getFieldValue('speed');
+                if (v === undefined || v === null || v === '') form.setFieldValue('speed', 0);
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="maintenance_months"
+            label="Thời gian bảo trì (số tháng)"
+            tooltip="Số tháng bảo trì. Ngày bắt đầu chỉ được tính khi thang máy thuộc hợp đồng lắp đặt đã hoàn thành."
+          >
+            <InputNumber style={{ width: '100%' }} min={1} placeholder="VD: 12" />
+          </Form.Item>
+
+          <Form.Item
+            name="maintenance_frequency_per_month"
+            label="Tần suất bảo trì (tháng/lần)"
+            tooltip="Số tháng giữa mỗi lần bảo trì (VD: 2 = bảo trì mỗi 2 tháng 1 lần)"
+          >
+            <InputNumber style={{ width: '100%' }} min={1} max={36} placeholder="VD: 2" />
           </Form.Item>
 
           <Form.Item name="description" label="Mô tả">

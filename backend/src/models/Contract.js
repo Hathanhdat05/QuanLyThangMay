@@ -27,6 +27,7 @@ const schema = new mongoose.Schema(
     status: { type: String, enum: ['draft', 'active', 'completed', 'cancelled'], default: 'draft' },
     total_value: { type: Number, default: 0 },
     notes: { type: String, default: '' },
+    created_from_error_report_id: { type: mongoose.Schema.Types.ObjectId, ref: 'ErrorReport' },
     items: [contractProductSchema],
   },
   { timestamps: true, toJSON: { virtuals: true } }

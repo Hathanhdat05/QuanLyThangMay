@@ -329,7 +329,10 @@ export default function ContractForm() {
                 placeholder="Chọn khách hàng"
                 showSearch
                 optionFilterProp="label"
-                options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                options={customers.map((c) => ({
+                  value: c.id,
+                  label: `${c.name}${c.customerId ? ` (ID: ${c.customerId})` : ` (ID: ${c.id})`}`,
+                }))}
               />
             </Form.Item>
 

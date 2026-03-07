@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, Space, Spin, InputNumber, message, Upload } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { api, BASE_URL } from '../../lib/api';
@@ -15,8 +15,10 @@ export default function ProductForm() {
   const [saving, setSaving] = useState(false);
   const [imageFileList, setImageFileList] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const fromContractId = location.state?.fromContractId;
 
   useEffect(() => {
     let isMounted = true;
@@ -90,7 +92,7 @@ export default function ProductForm() {
         message.error('Lỗi cập nhật sản phẩm');
       } else {
         message.success('Đã cập nhật sản phẩm');
-        navigate('/products');
+        navigate(fromContractId ? `/contracts/${fromContractId}/detail` : '/products');
       }
     } else {
       const { error } = await api.post('/products', values);
@@ -98,7 +100,7 @@ export default function ProductForm() {
         message.error('Lỗi thêm sản phẩm');
       } else {
         message.success('Đã thêm sản phẩm');
-        navigate('/products');
+        navigate(fromContractId ? `/contracts/${fromContractId}/detail` : '/products');
       }
     }
     setSaving(false);
@@ -115,7 +117,10 @@ export default function ProductForm() {
   return (
     <div>
       <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/products')}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate(fromContractId ? `/contracts/${fromContractId}/detail` : '/products')}
+        >
           Quay lại
         </Button>
         <Title level={4} style={{ margin: 0 }}>
@@ -214,7 +219,7 @@ export default function ProductForm() {
               <Button type="primary" htmlType="submit" loading={saving}>
                 {isEdit ? 'Cập nhật' : 'Thêm mới'}
               </Button>
-              <Button onClick={() => navigate('/products')}>Hủy</Button>
+              <Button onClick={() => navigate(fromContractId ? `/contracts/${fromContractId}/detail` : '/products')}>Hủy</Button>
             </Space>
           </Form.Item>
         </Form>
