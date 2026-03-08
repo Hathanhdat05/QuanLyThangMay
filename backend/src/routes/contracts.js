@@ -102,11 +102,14 @@ async function generateMaintenanceScheduleForContract(contractId) {
 
 router.get('/', async (req, res) => {
   try {
-    const { search, status, contract_type, created_from, created_to, warranty_status: warrantyStatusQuery } = req.query;
+    const { search, status, contract_type, created_from, created_to, warranty_status: warrantyStatusQuery, customer_id: customerIdQuery } = req.query;
     const filter = {};
 
     if (status) filter.status = status;
     if (contract_type) filter.contract_type = contract_type;
+    if (customerIdQuery && mongoose.Types.ObjectId.isValid(customerIdQuery)) {
+      filter.customer_id = new mongoose.Types.ObjectId(customerIdQuery);
+    }
 
     if (created_from || created_to) {
       const createdFilter = {};

@@ -41,6 +41,7 @@ export default function ContractDetail() {
   const fromErrorReportId = location.state?.fromErrorReportId;
   const returnToCalendarWithErrorReportId = location.state?.returnToCalendarWithErrorReportId;
   const returnToCalendarWithScheduleId = location.state?.returnToCalendarWithScheduleId;
+  const fromCustomerId = location.state?.fromCustomerId;
 
   const formatDate = (val) => {
     if (!val) return '-';
@@ -66,9 +67,11 @@ export default function ContractDetail() {
             ? '/maintenance-calendar'
             : fromErrorReportId
               ? `/error-reports/${fromErrorReportId}/detail`
-              : fromMaintenanceCalendar
-                ? '/maintenance-calendar'
-                : '/contracts',
+              : fromCustomerId
+                ? `/customers/${fromCustomerId}/detail`
+                : fromMaintenanceCalendar
+                  ? '/maintenance-calendar'
+                  : '/contracts',
         returnToCalendarWithScheduleId
           ? { state: { openScheduleId: returnToCalendarWithScheduleId } }
           : returnToCalendarWithErrorReportId
@@ -191,9 +194,11 @@ export default function ContractDetail() {
                 ? '/maintenance-calendar'
                 : fromErrorReportId
                   ? `/error-reports/${fromErrorReportId}/detail`
-                  : fromMaintenanceCalendar
-                    ? '/maintenance-calendar'
-                    : '/contracts',
+                  : fromCustomerId
+                    ? `/customers/${fromCustomerId}/detail`
+                    : fromMaintenanceCalendar
+                      ? '/maintenance-calendar'
+                      : '/contracts',
             returnToCalendarWithScheduleId
               ? { state: { openScheduleId: returnToCalendarWithScheduleId } }
               : returnToCalendarWithErrorReportId
