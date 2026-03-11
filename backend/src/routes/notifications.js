@@ -3,33 +3,100 @@ import { Notification } from '../models/Notification.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
+const NOTIFICATION_TYPE = 'maintenance_schedule_upcoming';
 
 router.use(authMiddleware);
 
+function formatNotification(n) {
+  const id = n._id?.toHexString?.() ?? n._id;
+  const out = { ...n, id, _id: undefined, __v: undefined };
+  if (n.elevator_id && typeof n.elevator_id === 'object') {
+    out.elevator = n.elevator_id;
+    out.elevator_id = n.elevator_id._id?.toHexString?.() ?? n.elevator_id._id;
+  }
+  if (n.contract_id && typeof n.contract_id === 'object') {
+    out.contract = n.contract_id;
+    out.contract_id = n.contract_id._id?.toHexString?.() ?? n.contract_id._id;
+  }
+  if (n.maintenance_schedule_id && typeof n.maintenance_schedule_id === 'object') {
+    out.maintenance_schedule = n.maintenance_schedule_id;
+    out.maintenance_schedule_id = n.maintenance_schedule_id._id?.toHexString?.() ?? n.maintenance_schedule_id._id;
+  }
+  return out;
+}
+
 router.get('/', async (req, res) => {
   try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
-    const list = await Notification.find()
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .populate('elevator_id', 'name elevatorId')
-      .populate('contract_id', 'contract_number end_date')
-      .lean();
-    const data = list.map((n) => {
-      const id = n._id?.toHexString();
-      const out = { ...n, id, _id: undefined };
-      if (n.elevator_id) {
-        out.elevator = n.elevator_id;
-        out.elevator_id = n.elevator_id._id?.toHexString();
-      }
-      if (n.contract_id) {
-        out.contract = n.contract_id;
-        out.contract_id = n.contract_id._id?.toHexString();
-      }
-      return out;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    filter.type = NOTIFICATION_TYPE;
+    if (req.query.read === 'true') filter.read = true;
+    else if (req.query.read === 'false') filter.read = false;
+
+    const [list, total] = await Promise.all([
+      Notification.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('elevator_id', 'name elevatorId')
+        .populate('contract_id', 'contract_number end_date')
+        .populate('maintenance_schedule_id', 'scheduled_date status elevator_id contract_id title')
+        .lean(),
+      Notification.countDocuments(filter),
+    ]);
+
+    return res.json({
+      data: list.map(formatNotification),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
     });
-    return res.json(data);
-  } catch (err) {
+  } catch {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/unread-count', async (_req, res) => {
+  try {
+    const count = await Notification.countDocuments({ type: NOTIFICATION_TYPE, read: false });
+    return res.json({ count });
+  } catch {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/:id/read', async (req, res) => {
+  try {
+    const doc = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { read: true },
+      { new: true },
+    ).lean();
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    return res.json(formatNotification(doc));
+  } catch {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/mark-all-read', async (_req, res) => {
+  try {
+    await Notification.updateMany({ type: NOTIFICATION_TYPE, read: false }, { read: true });
+    return res.json({ ok: true });
+  } catch {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const doc = await Notification.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    return res.json({ ok: true });
+  } catch {
     return res.status(500).json({ error: 'Server error' });
   }
 });

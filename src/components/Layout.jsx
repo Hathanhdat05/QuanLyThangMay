@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Layout as AntLayout, Menu, Button, Dropdown, Avatar, Typography, theme, Badge } from 'antd';
+import { Layout as AntLayout, Menu, Button, Dropdown, Avatar, Typography, theme, Badge, Tooltip } from 'antd';
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -15,85 +15,226 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BellOutlined,
+  CheckOutlined,
+  DeleteOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
+import { io } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../lib/api';
+import { api, API_ORIGIN } from '../lib/api';
 
 const { Header, Sider, Content } = AntLayout;
 const { Text } = Typography;
+const UPCOMING_NOTIFICATION_TITLE = 'Nhắc bảo trì định kỳ';
+let audioContextRef = null;
+
+function getDisplayTitle(notification) {
+  if (notification.type === 'maintenance_schedule_upcoming') return UPCOMING_NOTIFICATION_TITLE;
+  return notification.title;
+}
+
+function playNotificationSound() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  if (!audioContextRef) audioContextRef = new AudioCtx();
+  if (audioContextRef.state === 'suspended') {
+    audioContextRef.resume().catch(() => {});
+  }
+
+  const now = audioContextRef.currentTime;
+  const oscillator = audioContextRef.createOscillator();
+  const gainNode = audioContextRef.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(880, now);
+  oscillator.frequency.setValueAtTime(988, now + 0.08);
+  gainNode.gain.setValueAtTime(0.0001, now);
+  gainNode.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContextRef.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.21);
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+async function setupBrowserPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false;
+
+  const registration = await navigator.serviceWorker.register('/push-sw.js');
+  let permission = Notification.permission;
+  if (permission === 'default') permission = await Notification.requestPermission();
+  if (permission !== 'granted') return false;
+
+  const { data, error } = await api.get('/push-subscriptions/public-key');
+  if (error || !data?.publicKey) return false;
+
+  const applicationServerKey = urlBase64ToUint8Array(data.publicKey);
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+  }
+
+  await api.post('/push-subscriptions/subscribe', { subscription: subscription.toJSON() });
+  return true;
+}
+
+async function getBrowserPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  if (Notification.permission !== 'granted') return 'disabled';
+  const registration = await navigator.serviceWorker.register('/push-sw.js');
+  const subscription = await registration.pushManager.getSubscription();
+  return subscription ? 'enabled' : 'disabled';
+}
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [pushStatus, setPushStatus] = useState('checking');
+  const [pushLoading, setPushLoading] = useState(false);
+  const socketRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, isAdmin } = useAuth();
   const { token } = theme.useToken();
 
+  const fetchNotifications = useCallback(async () => {
+    const { data, error } = await api.get('/notifications?limit=10');
+    if (error) return;
+    setNotifications(Array.isArray(data?.data) ? data.data : []);
+  }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    const { data, error } = await api.get('/notifications/unread-count');
+    if (error) return;
+    setUnreadCount(data?.count ?? 0);
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-    api.get('/notifications?limit=20').then(({ data, error }) => {
-      if (!isMounted || error) return;
-      setNotifications(Array.isArray(data) ? data : []);
+    fetchNotifications();
+    fetchUnreadCount();
+  }, [location.pathname, fetchNotifications, fetchUnreadCount]);
+
+  useEffect(() => {
+    const socket = io(API_ORIGIN, { transports: ['websocket', 'polling'] });
+    socketRef.current = socket;
+
+    socket.on('notification:new', (notification) => {
+      setNotifications((prev) => [notification, ...prev].slice(0, 10));
+      setUnreadCount((prev) => prev + 1);
+      playNotificationSound();
     });
-    return () => { isMounted = false; };
-  }, [location.pathname]);
+
+    socket.on('notification:unread-count', ({ count }) => {
+      setUnreadCount(count);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    setupBrowserPushSubscription()
+      .catch(() => {})
+      .finally(() => {
+        getBrowserPushStatus()
+          .then(setPushStatus)
+          .catch(() => setPushStatus('disabled'));
+      });
+  }, [profile?.id]);
+
+  const handleBellClick = useCallback(() => {
+    setupBrowserPushSubscription()
+      .catch(() => {})
+      .finally(() => {
+        getBrowserPushStatus()
+          .then(setPushStatus)
+          .catch(() => setPushStatus('disabled'));
+      });
+  }, []);
+
+  const handleEnableBrowserPush = useCallback(async () => {
+    setPushLoading(true);
+    try {
+      await setupBrowserPushSubscription();
+    } catch {
+      // ignore and refresh status below
+    } finally {
+      const status = await getBrowserPushStatus().catch(() => 'disabled');
+      setPushStatus(status);
+      setPushLoading(false);
+    }
+  }, []);
+
+  const handleNotificationOpenChange = useCallback(
+    (open) => {
+      setNotificationOpen(open);
+    },
+    []
+  );
+
+  const handleMarkRead = async (e, id) => {
+    e.stopPropagation();
+    await api.patch(`/notifications/${id}/read`);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleMarkAllRead = async (e) => {
+    e.stopPropagation();
+    await api.patch('/notifications/mark-all-read');
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const handleDismiss = async (e, id) => {
+    e.stopPropagation();
+    const n = notifications.find((x) => x.id === id);
+    await api.delete(`/notifications/${id}`);
+    setNotifications((prev) => prev.filter((x) => x.id !== id));
+    if (n && !n.read) setUnreadCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNotificationClick = (n) => {
+    setNotificationOpen(false);
+    if (!n.read) {
+      api.patch(`/notifications/${n.id}/read`);
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+    if (n.type === 'maintenance_schedule_upcoming' && n.maintenance_schedule_id) {
+      navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+    }
+  };
 
   const menuItems = [
-    {
-      key: '/',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-    },
-    {
-      key: '/customers',
-      icon: <TeamOutlined />,
-      label: 'Khách hàng',
-    },
-    {
-      key: '/contracts',
-      icon: <FileTextOutlined />,
-      label: 'Hợp đồng',
-    },
-    {
-      key: '/products',
-      icon: <ShoppingOutlined />,
-      label: 'Sản phẩm',
-    },
-    {
-      key: '/elevators',
-      icon: <ToolOutlined />,
-      label: 'Thang máy',
-    },
-    {
-      key: '/error-reports',
-      icon: <WarningOutlined />,
-      label: 'Báo lỗi',
-    },
-    {
-      key: '/maintenance-calendar',
-      icon: <CalendarOutlined />,
-      label: 'Lịch bảo trì',
-    },
-    {
-      key: '/maintenance-orders',
-      icon: <FormOutlined />,
-      label: 'Đơn bảo trì',
-    },
-    ...(isAdmin
-      ? [
-          {
-            key: '/users',
-            icon: <UserOutlined />,
-            label: 'Quản lý User',
-          },
-        ]
-      : []),
+    { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/customers', icon: <TeamOutlined />, label: 'Khách hàng' },
+    { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },
+    { key: '/products', icon: <ShoppingOutlined />, label: 'Sản phẩm' },
+    { key: '/elevators', icon: <ToolOutlined />, label: 'Thang máy' },
+    { key: '/error-reports', icon: <WarningOutlined />, label: 'Báo lỗi' },
+    { key: '/maintenance-calendar', icon: <CalendarOutlined />, label: 'Lịch bảo trì' },
+    { key: '/maintenance-orders', icon: <FormOutlined />, label: 'Đơn bảo trì' },
+    ...(isAdmin ? [{ key: '/users', icon: <UserOutlined />, label: 'Quản lý User' }] : []),
   ];
 
-  const selectedKey = menuItems
-    .filter((item) => item.key !== '/')
-    .find((item) => location.pathname.startsWith(item.key))?.key || '/';
+  const selectedKey =
+    menuItems.filter((item) => item.key !== '/').find((item) => location.pathname.startsWith(item.key))?.key || '/';
 
   const handleLogout = async () => {
     await signOut();
@@ -114,16 +255,179 @@ export default function Layout() {
       disabled: true,
     },
     { type: 'divider' },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Đăng xuất',
-      danger: true,
-      onClick: handleLogout,
-    },
+    { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true, onClick: handleLogout },
   ];
 
   const siderWidth = collapsed ? 80 : 260;
+
+  const notificationDropdown = (
+    <div
+      style={{
+        background: token.colorBgContainer,
+        borderRadius: token.borderRadiusLG,
+        boxShadow: token.boxShadowSecondary,
+        width: 380,
+        maxHeight: 460,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          padding: '12px 16px',
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 15 }}>Thông báo</span>
+        {unreadCount > 0 && (
+          <Tooltip title="Đánh dấu tất cả đã đọc">
+            <Button type="text" size="small" icon={<CheckOutlined />} onClick={handleMarkAllRead}>
+              Đọc tất cả
+            </Button>
+          </Tooltip>
+        )}
+      </div>
+
+      <div
+        style={{
+          padding: '10px 16px',
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 500, fontSize: 13 }}>Thông báo trình duyệt</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {pushStatus === 'enabled'
+              ? 'Đã bật'
+              : pushStatus === 'unsupported'
+                ? 'Trình duyệt không hỗ trợ'
+                : pushStatus === 'checking'
+                  ? 'Đang kiểm tra...'
+                  : 'Chưa bật'}
+          </Text>
+        </div>
+        <Button
+          size="small"
+          type={pushStatus === 'enabled' ? 'default' : 'primary'}
+          loading={pushLoading}
+          disabled={pushStatus === 'unsupported' || pushStatus === 'enabled'}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEnableBrowserPush();
+          }}
+        >
+          {pushStatus === 'enabled' ? 'Đã bật' : 'Bật thông báo trình duyệt'}
+        </Button>
+      </div>
+
+      <div style={{ overflow: 'auto', flex: 1 }}>
+        {notifications.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: token.colorTextSecondary }}>
+            Chưa có thông báo
+          </div>
+        ) : (
+          notifications.map((n) => (
+            <div
+              key={n.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleNotificationClick(n)}
+              onKeyDown={(e) => e.key === 'Enter' && handleNotificationClick(n)}
+              style={{
+                padding: '10px 16px',
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                cursor: 'pointer',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                background: n.read ? 'transparent' : token.colorPrimaryBg,
+                transition: 'background 0.2s',
+              }}
+            >
+              {!n.read && (
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: token.colorPrimary,
+                    flexShrink: 0,
+                    marginTop: 6,
+                  }}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: n.read ? 400 : 600, marginBottom: 2, fontSize: 13 }}>
+                  {getDisplayTitle(n)}
+                </div>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, display: 'block' }}
+                  ellipsis={{ rows: 2 }}
+                >
+                  {n.message}
+                </Text>
+                {n.createdAt && (
+                  <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block' }}>
+                    {new Date(n.createdAt).toLocaleString('vi-VN')}
+                  </Text>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                {!n.read && (
+                  <Tooltip title="Đánh dấu đã đọc">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CheckOutlined style={{ fontSize: 12 }} />}
+                      onClick={(e) => handleMarkRead(e, n.id)}
+                      style={{ width: 24, height: 24, minWidth: 24 }}
+                    />
+                  </Tooltip>
+                )}
+                <Tooltip title="Xóa">
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<CloseOutlined style={{ fontSize: 12 }} />}
+                    onClick={(e) => handleDismiss(e, n.id)}
+                    style={{ width: 24, height: 24, minWidth: 24 }}
+                  />
+                </Tooltip>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div
+        style={{
+          padding: '8px 16px',
+          borderTop: `1px solid ${token.colorBorderSecondary}`,
+          textAlign: 'center',
+        }}
+      >
+        <Button
+          type="link"
+          size="small"
+          onClick={() => {
+            setNotificationOpen(false);
+            navigate('/notifications');
+          }}
+        >
+          Xem tất cả
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
@@ -163,14 +467,7 @@ export default function Layout() {
             }}
           />
           {!collapsed && (
-            <span
-              style={{
-                marginLeft: 12,
-                fontWeight: 700,
-                fontSize: 16,
-                color: token.colorText,
-              }}
-            >
+            <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 16, color: token.colorText }}>
               Quản lý Thang máy
             </span>
           )}
@@ -209,75 +506,20 @@ export default function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Dropdown
               trigger={['click']}
-              dropdownRender={() => (
-                <div
-                  style={{
-                    background: token.colorBgContainer,
-                    borderRadius: token.borderRadiusLG,
-                    boxShadow: token.boxShadowSecondary,
-                    minWidth: 320,
-                    maxWidth: 400,
-                    maxHeight: 400,
-                    overflow: 'auto',
-                  }}
-                >
-                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: 600 }}>
-                    Thông báo
-                  </div>
-                  {notifications.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: token.colorTextSecondary }}>
-                      Chưa có thông báo
-                    </div>
-                  ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          if (n.type === 'maintenance_due' && n.elevator_id) {
-                            navigate(`/elevators/${n.elevator_id}`);
-                          } else if (n.type === 'maintenance_contract_expired' && n.contract_id) {
-                            navigate(`/contracts/${n.contract_id}/detail`);
-                          }
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && (n.type === 'maintenance_due' ? navigate(`/elevators/${n.elevator_id}`) : navigate(`/contracts/${n.contract_id}/detail`))}
-                        style={{
-                          padding: '12px 16px',
-                          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div style={{ fontWeight: 500, marginBottom: 4 }}>{n.title}</div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{n.message}</Text>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+              open={notificationOpen}
+              onOpenChange={handleNotificationOpenChange}
+              dropdownRender={() => notificationDropdown}
             >
-              <Badge count={notifications.length} size="small" offset={[-2, 2]}>
-                <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
+              <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+                <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} onClick={handleBellClick} />
               </Badge>
             </Dropdown>
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
-            <div
-              style={{
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <Avatar
-                style={{ backgroundColor: token.colorPrimary }}
-                icon={<UserOutlined />}
-              />
-              <span style={{ fontWeight: 500 }}>
-                {profile?.full_name || 'User'}
-              </span>
-            </div>
-          </Dropdown>
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar style={{ backgroundColor: token.colorPrimary }} icon={<UserOutlined />} />
+                <span style={{ fontWeight: 500 }}>{profile?.full_name || 'User'}</span>
+              </div>
+            </Dropdown>
           </div>
         </Header>
 

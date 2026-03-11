@@ -8,6 +8,8 @@ import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
 import { generateNextContractNumber, previewNextContractNumber } from '../utils/contractNumber.js';
+import { addMonthsToDateOnly, parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
+import { syncScheduleToGoogleCalendar, deleteScheduleFromGoogleCalendar } from '../services/googleCalendarSync.js';
 
 const router = Router();
 
@@ -54,9 +56,9 @@ async function generateMaintenanceScheduleForContract(contractId) {
     const dates = [];
     // Lịch bảo trì gần nhất = ngày hoàn thành + 1 chu kỳ (vd: 21/3 + 1 tháng → 21/4)
     let d = addMonths(new Date(endDate), frequencyMonths);
-    d.setHours(0, 0, 0, 0);
     while (d <= periodEnd) {
-      dates.push(new Date(d));
+      const scheduleDateOnly = toDateOnly(d);
+      if (scheduleDateOnly) dates.push(scheduleDateOnly);
       d = addMonths(d, frequencyMonths);
     }
 
@@ -64,11 +66,12 @@ async function generateMaintenanceScheduleForContract(contractId) {
       const exists = await MaintenanceSchedule.findOne({
         contract_id: doc._id,
         elevator_id: elevatorId,
-        scheduled_date: { $eq: scheduledDate },
+        scheduled_date: scheduledDate,
       });
       if (!exists) {
-        const month = scheduledDate.getMonth() + 1;
-        const year = scheduledDate.getFullYear();
+        const dateObj = parseDateOnlyToDate(scheduledDate) || new Date();
+        const month = dateObj.getMonth() + 1;
+        const year = dateObj.getFullYear();
         const monthYear = `${String(month).padStart(2, '0')}/${year}`;
         const title = `Bảo trì định kì - ${monthYear} - ${customerName || elevatorName}`;
         const scheduleDoc = await MaintenanceSchedule.create({
@@ -82,6 +85,9 @@ async function generateMaintenanceScheduleForContract(contractId) {
           customer_id: customerId || undefined,
           customer_name: customerName,
         });
+        syncScheduleToGoogleCalendar(scheduleDoc).catch((err) =>
+          console.error('Google Calendar sync schedule error:', err?.message || err)
+        );
         await MaintenanceOrder.create({
           maintenance_schedule_id: scheduleDoc._id,
           contract_id: doc._id,
@@ -202,8 +208,7 @@ router.get('/', async (req, res) => {
         if (key) elevatorsMap[key] = e.maintenance_end_date;
       }
     }
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = parseDateOnlyToDate(new Date()) || new Date();
     for (const c of data) {
       // Trạng thái bảo hành chỉ áp dụng khi hợp đồng lắp đặt đã hoàn thành
       if (c.contract_type !== 'installation' || c.status !== 'completed') {
@@ -610,19 +615,19 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
 
     if (status === 'completed' && contract.contract_type === 'installation' && Array.isArray(contract.items)) {
       const completionDate = contract.end_date || contract.start_date || new Date();
-      const startOfDay = new Date(completionDate);
-      startOfDay.setUTCHours(0, 0, 0, 0);
+      const startDateOnly = toDateOnly(completionDate);
       for (const it of contract.items) {
         if (!it.elevator_id) continue;
         const elevator = await Elevator.findById(it.elevator_id).lean();
         if (!elevator) continue;
         const months = elevator.maintenance_months != null && elevator.maintenance_months >= 1 ? Number(elevator.maintenance_months) : 0;
         if (months < 1) continue;
-        const endDate = new Date(startOfDay);
-        endDate.setUTCMonth(endDate.getUTCMonth() + months);
+        const maintenanceStartDate = parseDateOnlyToDate(startDateOnly);
+        const maintenanceEndDate = parseDateOnlyToDate(addMonthsToDateOnly(startDateOnly, months));
+        if (!maintenanceStartDate || !maintenanceEndDate) continue;
         await Elevator.findByIdAndUpdate(it.elevator_id, {
-          maintenance_start_date: startOfDay,
-          maintenance_end_date: endDate,
+          maintenance_start_date: maintenanceStartDate,
+          maintenance_end_date: maintenanceEndDate,
         });
       }
     }
@@ -646,9 +651,18 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const contractId = req.params.id;
-    const scheduleIds = await MaintenanceSchedule.find({ contract_id: contractId }).select('_id').lean();
+    const scheduleIds = await MaintenanceSchedule.find({ contract_id: contractId })
+      .select('_id google_calendar_event_id')
+      .lean();
     const ids = (scheduleIds || []).map((s) => s._id);
     if (ids.length > 0) {
+      await Promise.all(
+        scheduleIds.map((schedule) =>
+          deleteScheduleFromGoogleCalendar(schedule).catch((err) =>
+            console.error('Google Calendar delete schedule error:', err?.message || err)
+          )
+        )
+      );
       await MaintenanceOrder.deleteMany({ maintenance_schedule_id: { $in: ids } });
       await MaintenanceSchedule.deleteMany({ contract_id: contractId });
     }

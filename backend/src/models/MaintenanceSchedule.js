@@ -1,16 +1,24 @@
 import mongoose from 'mongoose';
+import { toDateOnly } from '../utils/dateOnly.js';
 
 const schema = new mongoose.Schema(
   {
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', required: true, index: true },
     elevator_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Elevator', required: true, index: true },
-    scheduled_date: { type: Date, required: true, index: true },
+    scheduled_date: {
+      type: String,
+      required: true,
+      index: true,
+      set: (value) => toDateOnly(value),
+      match: /^\d{4}-\d{2}-\d{2}$/,
+    },
     title: { type: String, default: '' },
     status: { type: String, enum: ['planned', 'completed', 'cancelled'], default: 'planned' },
     contract_number: { type: String, default: '' },
     elevator_name: { type: String, default: '' },
     customer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
     customer_name: { type: String, default: '' },
+    google_calendar_event_id: { type: String, default: '', index: true },
   },
   { timestamps: true, toJSON: { virtuals: true } }
 );

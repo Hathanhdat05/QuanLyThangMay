@@ -24,6 +24,7 @@ import MaintenanceOrderList from './pages/maintenance-orders/MaintenanceOrderLis
 import MaintenanceOrderDetail from './pages/maintenance-orders/MaintenanceOrderDetail';
 import UserList from './pages/users/UserList';
 import UserForm from './pages/users/UserForm';
+import NotificationList from './pages/notifications/NotificationList';
 
 export default function App() {
   return (
@@ -69,6 +70,8 @@ export default function App() {
           <Route path="/maintenance-orders" element={<MaintenanceOrderList />} />
           <Route path="/maintenance-orders/schedule/:scheduleId/detail" element={<MaintenanceOrderDetail />} />
           <Route path="/maintenance-orders/:id/detail" element={<MaintenanceOrderDetail />} />
+
+          <Route path="/notifications" element={<NotificationList />} />
 
           <Route path="/users" element={<ProtectedRoute adminOnly><UserList /></ProtectedRoute>} />
           <Route path="/users/new" element={<ProtectedRoute adminOnly><UserForm /></ProtectedRoute>} />

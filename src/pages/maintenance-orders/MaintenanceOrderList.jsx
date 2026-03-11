@@ -14,6 +14,16 @@ const STATUS_MAP = {
   cancelled: { label: 'Đã hủy', color: 'default' },
 };
 
+function toSortTimestamp(value) {
+  if (!value) return 0;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [yyyy, mm, dd] = value.split('-').map((v) => Number(v));
+    return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0).getTime();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
 export default function MaintenanceOrderList() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -81,7 +91,7 @@ export default function MaintenanceOrderList() {
         const d = dayjs(v);
         return d.isValid() ? d.format('DD-MM-YYYY') : '-';
       },
-      sorter: (a, b) => (new Date(a.scheduled_date) || 0) - (new Date(b.scheduled_date) || 0),
+      sorter: (a, b) => toSortTimestamp(a.scheduled_date) - toSortTimestamp(b.scheduled_date),
     },
     {
       title: 'Trạng thái',

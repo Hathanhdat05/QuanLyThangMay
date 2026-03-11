@@ -6,6 +6,7 @@ import { Elevator } from '../models/Elevator.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { generateNextContractNumber } from '../utils/contractNumber.js';
+import { endOfDateOnlyToDate } from '../utils/dateOnly.js';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
@@ -44,10 +45,9 @@ async function isElevatorInMaintenancePeriod(elevatorId, referenceDate) {
   if (!elevatorId) return false;
   const elevator = await Elevator.findById(elevatorId).select('maintenance_end_date').lean();
   if (!elevator?.maintenance_end_date) return false;
-  const ref = referenceDate ? new Date(referenceDate) : new Date();
-  ref.setUTCHours(23, 59, 59, 999);
-  const end = new Date(elevator.maintenance_end_date);
-  end.setUTCHours(23, 59, 59, 999);
+  const ref = endOfDateOnlyToDate(referenceDate || new Date());
+  const end = endOfDateOnlyToDate(elevator.maintenance_end_date);
+  if (!ref || !end) return false;
   return end >= ref;
 }
 

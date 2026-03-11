@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
@@ -11,9 +12,12 @@ router.get('/', async (req, res) => {
     const { from, to } = req.query;
     const filter = {};
     if (from || to) {
+      const fromDateOnly = toDateOnly(from);
+      const toDateOnlyValue = toDateOnly(to);
       filter.scheduled_date = {};
-      if (from) filter.scheduled_date.$gte = new Date(from);
-      if (to) filter.scheduled_date.$lte = new Date(to);
+      if (fromDateOnly) filter.scheduled_date.$gte = fromDateOnly;
+      if (toDateOnlyValue) filter.scheduled_date.$lte = toDateOnlyValue;
+      if (Object.keys(filter.scheduled_date).length === 0) delete filter.scheduled_date;
     }
     const list = await MaintenanceSchedule.find(filter)
       .populate({ path: 'contract_id', select: 'customer_id', populate: { path: 'customer_id', select: 'name' } })
@@ -21,6 +25,7 @@ router.get('/', async (req, res) => {
       .lean();
     const data = list.map((s) => {
       const out = { ...s, id: s._id?.toHexString(), _id: undefined, source: 'schedule' };
+      out.scheduled_date = toDateOnly(s.scheduled_date) || s.scheduled_date;
       const contract = s.contract_id;
       if (contract && typeof contract === 'object') {
         out.contract_id = contract._id?.toHexString?.() ?? contract._id;

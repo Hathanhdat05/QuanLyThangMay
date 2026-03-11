@@ -6,6 +6,7 @@ import { Elevator } from '../models/Elevator.js';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
@@ -13,8 +14,7 @@ router.use(authMiddleware);
 
 router.get('/', async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = toDateOnly(new Date());
 
     const [customersCount, contractsCount, productsCount, elevatorsCount, recentReports, upcomingSchedules] =
       await Promise.all([
@@ -46,6 +46,7 @@ router.get('/', async (req, res) => {
 
     const mapSchedule = (s) => {
       const out = { ...s, id: s._id?.toHexString(), _id: undefined };
+      out.scheduled_date = toDateOnly(s.scheduled_date) || s.scheduled_date;
       out.elevators = s.elevator_name ? { name: s.elevator_name } : null;
       out.customers = s.customer_name ? { name: s.customer_name } : null;
       return out;

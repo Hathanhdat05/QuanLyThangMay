@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { syncScheduleToGoogleCalendar } from '../services/googleCalendarSync.js';
+import { parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
@@ -25,7 +27,7 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
     if (!order) {
       const schedule = await MaintenanceSchedule.findById(scheduleId).lean();
       if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
-      const d = schedule.scheduled_date ? new Date(schedule.scheduled_date) : new Date();
+      const d = parseDateOnlyToDate(schedule.scheduled_date) || new Date();
       const month = d.getMonth() + 1;
       const year = d.getFullYear();
       const monthYear = `${String(month).padStart(2, '0')}/${year}`;
@@ -51,6 +53,7 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
     }
 
     const out = { ...order, id: order._id?.toHexString(), _id: undefined };
+    out.scheduled_date = toDateOnly(order.scheduled_date) || order.scheduled_date;
     out.contract_id = order.contract_id?._id?.toHexString?.() ?? order.contract_id;
     out.contract_number = order.contract_id?.contract_number;
     out.elevator_id = order.elevator_id?._id?.toHexString?.() ?? order.elevator_id;
@@ -78,9 +81,12 @@ router.get('/', async (req, res) => {
     const { from, to, status } = req.query;
     const filter = {};
     if (from || to) {
+      const fromDateOnly = toDateOnly(from);
+      const toDateOnlyValue = toDateOnly(to);
       filter.scheduled_date = {};
-      if (from) filter.scheduled_date.$gte = new Date(from);
-      if (to) filter.scheduled_date.$lte = new Date(to);
+      if (fromDateOnly) filter.scheduled_date.$gte = fromDateOnly;
+      if (toDateOnlyValue) filter.scheduled_date.$lte = toDateOnlyValue;
+      if (Object.keys(filter.scheduled_date).length === 0) delete filter.scheduled_date;
     }
     if (status) filter.status = status;
 
@@ -93,6 +99,7 @@ router.get('/', async (req, res) => {
 
     const data = list.map((o) => {
       const out = { ...o, id: o._id?.toHexString(), _id: undefined };
+      out.scheduled_date = toDateOnly(o.scheduled_date) || o.scheduled_date;
       out.contract_id = o.contract_id?._id?.toHexString?.() ?? o.contract_id;
       out.contract_number = o.contract_id?.contract_number;
       out.elevator_id = o.elevator_id?._id?.toHexString?.() ?? o.elevator_id;
@@ -118,6 +125,7 @@ router.get('/:id', async (req, res) => {
 
     const out = doc.toJSON ? doc.toJSON() : doc;
     out.id = out._id?.toHexString?.() ?? out.id;
+    out.scheduled_date = toDateOnly(out.scheduled_date) || out.scheduled_date;
     out.contract_number = doc.contract_id?.contract_number;
     out.elevator_name = doc.elevator_id?.name;
     out.customer_name = doc.customer_id?.name;
@@ -160,6 +168,21 @@ router.put('/:id', async (req, res) => {
 
     await doc.save();
 
+    if (doc.maintenance_schedule_id) {
+      const scheduleStatus =
+        doc.status === 'cancelled' ? 'cancelled' : doc.status === 'completed' ? 'completed' : 'planned';
+      const schedule = await MaintenanceSchedule.findByIdAndUpdate(
+        doc.maintenance_schedule_id,
+        { status: scheduleStatus },
+        { new: true }
+      ).lean();
+      if (schedule) {
+        syncScheduleToGoogleCalendar(schedule).catch((err) =>
+          console.error('Google Calendar sync schedule status error:', err?.message || err)
+        );
+      }
+    }
+
     await doc.populate([
       { path: 'contract_id', select: 'contract_number' },
       { path: 'elevator_id', select: 'name' },
@@ -168,6 +191,7 @@ router.put('/:id', async (req, res) => {
     ]);
     const out = doc.toJSON ? doc.toJSON() : doc;
     out.id = out._id?.toHexString?.() ?? out.id;
+    out.scheduled_date = toDateOnly(out.scheduled_date) || out.scheduled_date;
     out.contract_number = doc.contract_id?.contract_number;
     out.elevator_name = doc.elevator_id?.name;
     out.customer_name = doc.customer_id?.name;

@@ -6,6 +6,7 @@ import 'moment/locale/vi';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Typography, Card, Tag, Modal, Descriptions, Spin, message, Select, Space, Button } from 'antd';
 import { api } from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 
 moment.locale('vi');
 const localizer = momentLocalizer(moment);
@@ -45,9 +46,44 @@ function formatDateDMY(value) {
   return m.format('DD-MM-YYYY');
 }
 
+function parseCalendarDate(value) {
+  if (!value) return new Date();
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [yyyy, mm, dd] = value.split('-').map((v) => Number(v));
+    return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+async function copyText(text) {
+  if (!text) return false;
+  if (navigator?.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fallback below
+    }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-1000px';
+  textarea.style.left = '-1000px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  return copied;
+}
+
 export default function MaintenanceCalendar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -55,6 +91,11 @@ export default function MaintenanceCalendar() {
   const [typeFilter, setTypeFilter] = useState(''); // '' = tất cả, 'schedule' = bảo trì định kỳ, 'report' = báo lỗi
   const [date, setDate] = useState(() => new Date());
   const [view, setView] = useState('month');
+  const [companyFeedUrl, setCompanyFeedUrl] = useState('');
+  const [companyFeedLoading, setCompanyFeedLoading] = useState(false);
+  const [companyFeedCopied, setCompanyFeedCopied] = useState(false);
+  const [resyncLoading, setResyncLoading] = useState(false);
+  const [resyncResult, setResyncResult] = useState(null);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -68,8 +109,8 @@ export default function MaintenanceCalendar() {
       const reportEvents = withScheduled.map((report) => ({
         id: `report-${report.id}`,
         title: report.title,
-        start: new Date(report.scheduled_date),
-        end: new Date(report.scheduled_date),
+        start: parseCalendarDate(report.scheduled_date),
+        end: parseCalendarDate(report.scheduled_date),
         allDay: true,
         resource: { ...report, source: 'report' },
       }));
@@ -77,8 +118,8 @@ export default function MaintenanceCalendar() {
       const scheduleEvents = schedules.map((s) => ({
         id: `schedule-${s.id}`,
         title: s.title || `Bảo trì - ${s.elevator_name || 'Thang máy'}`,
-        start: new Date(s.scheduled_date),
-        end: new Date(s.scheduled_date),
+        start: parseCalendarDate(s.scheduled_date),
+        end: parseCalendarDate(s.scheduled_date),
         allDay: true,
         resource: { ...s, source: 'schedule' },
       }));
@@ -156,6 +197,51 @@ export default function MaintenanceCalendar() {
     };
   }, []);
 
+  const fetchCompanyFeedUrl = useCallback(async () => {
+    setCompanyFeedLoading(true);
+    const { data, error } = await api.get('/google-calendar/shared-link');
+    setCompanyFeedLoading(false);
+    if (error) {
+      setCompanyFeedUrl('');
+      message.error(error.message || 'Không lấy được link Google Calendar');
+      return;
+    }
+    setCompanyFeedUrl(data?.calendarUrl || '');
+  }, []);
+
+  const handleCopyCompanyFeedUrl = useCallback(async () => {
+    if (!companyFeedUrl) {
+      message.warning('Bạn cần bấm "Lấy link chia sẻ" trước.');
+      return;
+    }
+    const ok = await copyText(companyFeedUrl);
+    if (!ok) {
+      message.error('Không thể copy tự động. Vui lòng copy thủ công link hiển thị bên trái.');
+      return;
+    }
+    setCompanyFeedCopied(true);
+    setTimeout(() => setCompanyFeedCopied(false), 1500);
+    message.success('Đã copy link Google Calendar');
+  }, [companyFeedUrl]);
+
+  const handleResyncGoogleCalendar = useCallback(async () => {
+    setResyncLoading(true);
+    const { data, error } = await api.post('/google-calendar/resync');
+    setResyncLoading(false);
+    if (error) {
+      setResyncResult({ ok: false, message: error.message || 'Resync thất bại' });
+      message.error(error.message || 'Resync thất bại');
+      return;
+    }
+    setResyncResult({
+      ok: true,
+      total: data?.total ?? 0,
+      synced: data?.synced ?? 0,
+      failed: data?.failed ?? 0,
+    });
+    message.success('Resync Google Calendar hoàn tất');
+  }, []);
+
   const messages = {
     today: 'Hôm nay',
     previous: 'Trước',
@@ -197,6 +283,56 @@ export default function MaintenanceCalendar() {
             </Tag>
           ))}
           <Tag color="cyan">Lịch định kỳ</Tag>
+        </Space>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size={8}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600 }}>Google Calendar (Lịch dùng chung)</div>
+              <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+                {companyFeedUrl ? 'Đã sẵn sàng link chia sẻ lịch' : 'Chưa lấy link chia sẻ'}
+              </div>
+              {companyFeedUrl && (
+                <div style={{ marginTop: 4, color: '#8c8c8c', fontSize: 12, wordBreak: 'break-all' }}>
+                  {companyFeedUrl}
+                </div>
+              )}
+            </div>
+            <Space>
+              <Button loading={companyFeedLoading} onClick={fetchCompanyFeedUrl}>
+                Lấy link chia sẻ
+              </Button>
+              <Button
+                type={companyFeedCopied ? 'default' : 'primary'}
+                disabled={!companyFeedUrl}
+                onClick={handleCopyCompanyFeedUrl}
+              >
+                {companyFeedCopied ? 'Đã copy' : 'Copy link chia sẻ'}
+              </Button>
+            </Space>
+          </div>
+          <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+            Dùng link chia sẻ để mở trực tiếp Google Calendar và thêm lịch dùng chung.
+          </div>
+          {isAdmin && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>Admin: Resync Google Calendar</div>
+                <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+                  {resyncResult
+                    ? resyncResult.ok
+                      ? `Tổng ${resyncResult.total}, synced ${resyncResult.synced}, lỗi ${resyncResult.failed}`
+                      : resyncResult.message
+                    : 'Đồng bộ lại toàn bộ lịch cũ một lần'}
+                </div>
+              </div>
+              <Button type="primary" loading={resyncLoading} onClick={handleResyncGoogleCalendar}>
+                Resync ngay
+              </Button>
+            </div>
+          )}
         </Space>
       </Card>
 

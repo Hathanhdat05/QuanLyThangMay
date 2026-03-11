@@ -6,18 +6,20 @@ const schema = new mongoose.Schema(
     message: { type: String, default: '' },
     type: {
       type: String,
-      enum: ['maintenance_due', 'maintenance_contract_expired'],
+      enum: ['maintenance_schedule_upcoming'],
       required: true,
     },
+    read: { type: Boolean, default: false },
     elevator_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Elevator' },
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract' },
-    reference_date: { type: Date }, // ngày tham chiếu (để tránh tạo trùng trong cùng ngày)
+    maintenance_schedule_id: { type: mongoose.Schema.Types.ObjectId, ref: 'MaintenanceSchedule' },
+    reference_date: { type: Date },
   },
   { timestamps: true, toJSON: { virtuals: true } }
 );
 
-schema.index({ type: 1, elevator_id: 1, reference_date: 1 });
-schema.index({ type: 1, contract_id: 1, reference_date: 1 });
+schema.index({ type: 1, maintenance_schedule_id: 1, reference_date: 1 });
+schema.index({ read: 1, createdAt: -1 });
 
 schema.virtual('id').get(function () {
   return this._id?.toHexString();
