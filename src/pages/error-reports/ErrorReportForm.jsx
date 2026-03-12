@@ -32,7 +32,7 @@ export default function ErrorReportForm() {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [elevatorOptions, setElevatorOptions] = useState([]);
-  const [elevatorMaintenanceEndDates, setElevatorMaintenanceEndDates] = useState({});
+  const [elevatorMaintenancePeriods, setElevatorMaintenancePeriods] = useState({});
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, isAdmin } = useAuth();
@@ -68,7 +68,7 @@ export default function ErrorReportForm() {
   const loadContractElevators = async (contractId, initialElevatorId = null) => {
     if (!contractId) {
       setElevatorOptions([]);
-      setElevatorMaintenanceEndDates({});
+      setElevatorMaintenancePeriods({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -77,7 +77,7 @@ export default function ErrorReportForm() {
     if (error || !data) {
       message.error('Không thể lấy thông tin hợp đồng');
       setElevatorOptions([]);
-      setElevatorMaintenanceEndDates({});
+      setElevatorMaintenancePeriods({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -88,7 +88,7 @@ export default function ErrorReportForm() {
     if (!elevatorItems.length) {
       message.warning('Hợp đồng này chưa có thang máy gắn kèm. Vui lòng kiểm tra lại dữ liệu hợp đồng.');
       setElevatorOptions([]);
-      setElevatorMaintenanceEndDates({});
+      setElevatorMaintenancePeriods({});
       form.setFieldsValue({ elevator_id: null });
       return;
     }
@@ -98,11 +98,16 @@ export default function ErrorReportForm() {
       label: it.elevator?.name || it.elevator_id,
     }));
 
-    const maintenanceEndMap = {};
+    const maintenancePeriodMap = {};
     elevatorItems.forEach((it) => {
-      if (it.elevator_id) maintenanceEndMap[it.elevator_id] = it.elevator?.maintenance_end_date || null;
+      if (it.elevator_id) {
+        maintenancePeriodMap[it.elevator_id] = {
+          start: data.start_date || null,
+          end: data.end_date || null,
+        };
+      }
     });
-    setElevatorMaintenanceEndDates(maintenanceEndMap);
+    setElevatorMaintenancePeriods(maintenancePeriodMap);
 
     setElevatorOptions(options);
 
@@ -117,11 +122,13 @@ export default function ErrorReportForm() {
 
     const elevatorId = initialElevatorId || form.getFieldValue('elevator_id');
     const reportedDateVal = form.getFieldValue('reported_date');
-    const endDateVal = elevatorId ? maintenanceEndMap[elevatorId] : null;
+    const period = elevatorId ? maintenancePeriodMap[elevatorId] : null;
     const inPeriod =
-      endDateVal &&
+      period?.start &&
+      period?.end &&
       reportedDateVal &&
-      dayjs(endDateVal).endOf('day').valueOf() >= dayjs(reportedDateVal).startOf('day').valueOf();
+      dayjs(period.start).startOf('day').valueOf() <= dayjs(reportedDateVal).startOf('day').valueOf() &&
+      dayjs(period.end).endOf('day').valueOf() >= dayjs(reportedDateVal).startOf('day').valueOf();
     if (inPeriod) {
       const currentItems = form.getFieldValue('items') || [];
       if (currentItems.length) {
@@ -206,11 +213,13 @@ export default function ErrorReportForm() {
     if ('elevator_id' in changedValues || 'reported_date' in changedValues) {
       const elevatorId = changedValues.elevator_id ?? form.getFieldValue('elevator_id');
       const reportedDate = changedValues.reported_date ?? form.getFieldValue('reported_date');
-      const endDate = elevatorId ? elevatorMaintenanceEndDates[elevatorId] : null;
+      const period = elevatorId ? elevatorMaintenancePeriods[elevatorId] : null;
       const inPeriod =
-        endDate &&
+        period?.start &&
+        period?.end &&
         reportedDate &&
-        dayjs(endDate).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
+        dayjs(period.start).startOf('day').valueOf() <= dayjs(reportedDate).startOf('day').valueOf() &&
+        dayjs(period.end).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
       if (inPeriod) {
         const items = form.getFieldValue('items') || [];
         if (items.length) {
@@ -258,10 +267,11 @@ export default function ErrorReportForm() {
 
   const selectedElevatorId = Form.useWatch('elevator_id', form);
   const reportedDate = Form.useWatch('reported_date', form);
-  const maintenanceEndDate = selectedElevatorId ? elevatorMaintenanceEndDates[selectedElevatorId] : null;
+  const maintenancePeriod = selectedElevatorId ? elevatorMaintenancePeriods[selectedElevatorId] : null;
   const inMaintenancePeriod =
-    Boolean(maintenanceEndDate && reportedDate) &&
-    dayjs(maintenanceEndDate).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
+    Boolean(maintenancePeriod?.start && maintenancePeriod?.end && reportedDate) &&
+    dayjs(maintenancePeriod.start).startOf('day').valueOf() <= dayjs(reportedDate).startOf('day').valueOf() &&
+    dayjs(maintenancePeriod.end).endOf('day').valueOf() >= dayjs(reportedDate).startOf('day').valueOf();
 
   const formItems = Form.useWatch('items', form) || [];
   const totalAmount = inMaintenancePeriod

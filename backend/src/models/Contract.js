@@ -24,6 +24,7 @@ const schema = new mongoose.Schema(
     },
     start_date: { type: Date },
     end_date: { type: Date },
+    maintenance_frequency_per_month: { type: Number, default: null, min: 1, max: 36 },
     status: { type: String, enum: ['draft', 'active', 'completed', 'cancelled'], default: 'draft' },
     total_value: { type: Number, default: 0 },
     notes: { type: String, default: '' },

@@ -2,7 +2,6 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { Contract } from '../models/Contract.js';
-import { Elevator } from '../models/Elevator.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { generateNextContractNumber } from '../utils/contractNumber.js';
@@ -41,14 +40,42 @@ const ERROR_STATUS_TO_CONTRACT_STATUS = {
 };
 
 /** Kiểm tra thang máy còn trong thời gian bảo trì tại ngày tham chiếu (không tính tiền vật tư). */
-async function isElevatorInMaintenancePeriod(elevatorId, referenceDate) {
-  if (!elevatorId) return false;
-  const elevator = await Elevator.findById(elevatorId).select('maintenance_end_date').lean();
-  if (!elevator?.maintenance_end_date) return false;
+async function isElevatorInMaintenancePeriod(elevatorId, contractId, referenceDate) {
+  if (!elevatorId && !contractId) return false;
   const ref = endOfDateOnlyToDate(referenceDate || new Date());
-  const end = endOfDateOnlyToDate(elevator.maintenance_end_date);
-  if (!ref || !end) return false;
-  return end >= ref;
+  if (!ref) return false;
+
+  if (contractId) {
+    const contract = await Contract.findById(contractId)
+      .select('contract_type status start_date end_date items.elevator_id')
+      .lean();
+    if (!contract) return false;
+    if (contract.contract_type !== 'installation' || contract.status !== 'completed') return false;
+    if (elevatorId) {
+      const hasElevator = (contract.items || []).some((it) => String(it?.elevator_id || '') === String(elevatorId));
+      if (!hasElevator) return false;
+    }
+    const start = endOfDateOnlyToDate(contract.start_date);
+    const end = endOfDateOnlyToDate(contract.end_date);
+    if (!start || !end) return false;
+    return ref >= start && ref <= end;
+  }
+
+  const matchedContract = await Contract.findOne({
+    contract_type: 'installation',
+    status: 'completed',
+    'items.elevator_id': elevatorId,
+    start_date: { $ne: null },
+    end_date: { $ne: null },
+  })
+    .select('start_date end_date')
+    .sort({ end_date: -1 })
+    .lean();
+  if (!matchedContract) return false;
+  const start = endOfDateOnlyToDate(matchedContract.start_date);
+  const end = endOfDateOnlyToDate(matchedContract.end_date);
+  if (!start || !end) return false;
+  return ref >= start && ref <= end;
 }
 
 function toResponse(doc) {
@@ -160,6 +187,7 @@ router.post('/', async (req, res) => {
 
     const inMaintenancePeriod = await isElevatorInMaintenancePeriod(
       body.elevator_id,
+      body.contract_id,
       body.reported_date
     );
     if (inMaintenancePeriod && Array.isArray(body.items)) {
@@ -266,6 +294,7 @@ router.put('/:id', async (req, res) => {
 
     const inMaintenancePeriod = await isElevatorInMaintenancePeriod(
       body.elevator_id,
+      body.contract_id,
       body.reported_date
     );
     if (inMaintenancePeriod && Array.isArray(body.items)) {

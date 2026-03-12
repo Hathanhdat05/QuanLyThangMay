@@ -2,13 +2,12 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import ExcelJS from 'exceljs';
 import { Contract } from '../models/Contract.js';
-import { Elevator } from '../models/Elevator.js';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
 import { generateNextContractNumber, previewNextContractNumber } from '../utils/contractNumber.js';
-import { addMonthsToDateOnly, parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
+import { parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
 import { syncScheduleToGoogleCalendar, deleteScheduleFromGoogleCalendar } from '../services/googleCalendarSync.js';
 
 const router = Router();
@@ -31,12 +30,17 @@ function addMonths(date, months) {
 /** Tự động tạo lịch bảo trì định kỳ khi hợp đồng lắp đặt hoàn thành (có start_date, end_date). Trả về số mục đã thêm. */
 async function generateMaintenanceScheduleForContract(contractId) {
   const doc = await Contract.findById(contractId)
-    .populate('items.elevator_id', 'name maintenance_months maintenance_frequency_per_month')
+    .populate('items.elevator_id', 'name')
     .populate('customer_id', 'name')
     .lean();
   if (!doc || doc.contract_type !== 'installation' || doc.status !== 'completed') return 0;
+  const startDate = doc.start_date ? new Date(doc.start_date) : null;
   const endDate = doc.end_date ? new Date(doc.end_date) : null;
+  const frequencyMonths = doc.maintenance_frequency_per_month != null ? Number(doc.maintenance_frequency_per_month) : 0;
+  if (!startDate || Number.isNaN(startDate.getTime())) return 0;
   if (!endDate || Number.isNaN(endDate.getTime())) return 0;
+  if (startDate > endDate) return 0;
+  if (frequencyMonths <= 0) return 0;
 
   let created = 0;
   const contractNumber = doc.contract_number || '';
@@ -48,15 +52,10 @@ async function generateMaintenanceScheduleForContract(contractId) {
     const elev = it.elevator_id;
     const elevatorId = elev._id;
     const elevatorName = elev.name || 'Thang máy';
-    const maintenanceMonths = elev.maintenance_months != null ? Number(elev.maintenance_months) : 0;
-    const frequencyMonths = elev.maintenance_frequency_per_month != null ? Number(elev.maintenance_frequency_per_month) : 0;
-    if (frequencyMonths <= 0 || maintenanceMonths <= 0) continue;
-
-    const periodEnd = addMonths(endDate, maintenanceMonths);
     const dates = [];
-    // Lịch bảo trì gần nhất = ngày hoàn thành + 1 chu kỳ (vd: 21/3 + 1 tháng → 21/4)
-    let d = addMonths(new Date(endDate), frequencyMonths);
-    while (d <= periodEnd) {
+    // Lịch bảo trì định kỳ chạy trong khoảng ngày hợp đồng: lần đầu = ngày bắt đầu + 1 chu kỳ
+    let d = addMonths(new Date(startDate), frequencyMonths);
+    while (d <= endDate) {
       const scheduleDateOnly = toDateOnly(d);
       if (scheduleDateOnly) dates.push(scheduleDateOnly);
       d = addMonths(d, frequencyMonths);
@@ -179,7 +178,7 @@ router.get('/', async (req, res) => {
         .lean();
     }
 
-    const data = list.map((c) => {
+    let data = list.map((c) => {
       const id = c._id?.toString?.();
       const out = { ...c, id, _id: undefined };
       if (usedAggregate) {
@@ -195,38 +194,18 @@ router.get('/', async (req, res) => {
       return out;
     });
 
-    const elevatorIds = [...new Set(data.flatMap((c) => (c.items || []).map((it) => it.elevator_id).filter(Boolean)))].map(
-      (id) => (id && typeof id === 'object' && id._id ? id._id : id)
-    );
-    const elevatorsMap = {};
-    if (elevatorIds.length > 0) {
-      const elevators = await Elevator.find({ _id: { $in: elevatorIds } })
-        .select('_id maintenance_end_date')
-        .lean();
-      for (const e of elevators) {
-        const key = e._id?.toString?.();
-        if (key) elevatorsMap[key] = e.maintenance_end_date;
-      }
-    }
     const today = parseDateOnlyToDate(new Date()) || new Date();
     for (const c of data) {
-      // Trạng thái bảo hành chỉ áp dụng khi hợp đồng lắp đặt đã hoàn thành
+      // Trạng thái bảo trì/bảo hành chỉ áp dụng khi hợp đồng lắp đặt đã hoàn thành.
       if (c.contract_type !== 'installation' || c.status !== 'completed') {
         c.warranty_status = null;
         continue;
       }
-      const endDates = (c.items || [])
-        .map((it) => {
-          const eid = it.elevator_id;
-          const idStr = eid && (eid._id || eid).toString ? (eid._id || eid).toString() : (eid || '').toString();
-          return elevatorsMap[idStr];
-        })
-        .filter((d) => d != null);
-      if (endDates.length === 0) {
+      const contractEndDate = c.end_date ? new Date(c.end_date) : null;
+      if (!contractEndDate || Number.isNaN(contractEndDate.getTime())) {
         c.warranty_status = null;
       } else {
-        const maxEnd = new Date(Math.max(...endDates.map((d) => new Date(d).getTime())));
-        c.warranty_status = maxEnd >= today ? 'under_warranty' : 'expired';
+        c.warranty_status = contractEndDate >= today ? 'under_warranty' : 'expired';
       }
     }
 
@@ -435,7 +414,7 @@ router.get('/:id', async (req, res) => {
     const doc = await Contract.findById(req.params.id)
       .populate('customer_id')
       .populate('items.product_id', 'name unit')
-      .populate('items.elevator_id', 'name maintenance_months maintenance_frequency_per_month maintenance_start_date maintenance_end_date')
+      .populate('items.elevator_id', 'name')
       .lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
     const data = { ...doc, id: doc._id?.toHexString() };
@@ -469,10 +448,6 @@ router.get('/:id', async (req, res) => {
       elevator: it.elevator_id
         ? {
             name: it.elevator_id.name,
-            maintenance_months: it.elevator_id.maintenance_months,
-            maintenance_frequency_per_month: it.elevator_id.maintenance_frequency_per_month,
-            maintenance_start_date: it.elevator_id.maintenance_start_date || null,
-            maintenance_end_date: it.elevator_id.maintenance_end_date || null,
           }
         : null,
     }));
@@ -491,8 +466,11 @@ router.post('/:id/generate-maintenance-schedule', requireAdmin, async (req, res)
     if (doc.contract_type !== 'installation' || doc.status !== 'completed') {
       return res.status(400).json({ error: 'Chỉ hợp đồng lắp đặt đã hoàn thành mới tạo được lịch bảo trì' });
     }
-    if (!doc.end_date) {
-      return res.status(400).json({ error: 'Hợp đồng chưa có ngày kết thúc' });
+    if (!doc.start_date || !doc.end_date) {
+      return res.status(400).json({ error: 'Hợp đồng chưa có đầy đủ ngày bắt đầu và ngày kết thúc' });
+    }
+    if (!doc.maintenance_frequency_per_month || Number(doc.maintenance_frequency_per_month) < 1) {
+      return res.status(400).json({ error: 'Hợp đồng chưa có tần suất bảo trì hợp lệ' });
     }
     const created = await generateMaintenanceScheduleForContract(req.params.id);
     return res.json({ created, message: `Đã thêm ${created} mục vào lịch bảo trì` });
@@ -515,12 +493,32 @@ router.post('/', requireAdmin, async (req, res) => {
       customer_id: body.customer_id || null,
       start_date: body.start_date || null,
       end_date: body.end_date || null,
+      maintenance_frequency_per_month:
+        body.maintenance_frequency_per_month != null && body.maintenance_frequency_per_month !== ''
+          ? Number(body.maintenance_frequency_per_month)
+          : null,
       contract_type: body.contract_type || 'installation',
       status: body.status || 'draft',
       total_value: body.total_value ?? 0,
       notes: body.notes || '',
       items,
     };
+
+    const hasElevatorItems = items.some((it) => it.item_type === 'elevator' && it.elevator_id);
+    const isInstallationContract = payloadBase.contract_type === 'installation';
+    if (isInstallationContract && hasElevatorItems) {
+      if (!payloadBase.start_date || !payloadBase.end_date) {
+        return res.status(400).json({ error: 'Hợp đồng lắp đặt phải có ngày bắt đầu và ngày kết thúc' });
+      }
+      const startDate = new Date(payloadBase.start_date);
+      const endDate = new Date(payloadBase.end_date);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) {
+        return res.status(400).json({ error: 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu' });
+      }
+      if (!payloadBase.maintenance_frequency_per_month || payloadBase.maintenance_frequency_per_month < 1) {
+        return res.status(400).json({ error: 'Vui lòng nhập tần suất bảo trì (tháng/lần)' });
+      }
+    }
 
     let requestedNumber = String(body.contract_number || '').trim() || null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -565,12 +563,31 @@ router.put('/:id', requireAdmin, async (req, res) => {
       customer_id: body.customer_id ?? undefined,
       start_date: body.start_date ?? null,
       end_date: body.end_date ?? null,
+      maintenance_frequency_per_month:
+        body.maintenance_frequency_per_month != null && body.maintenance_frequency_per_month !== ''
+          ? Number(body.maintenance_frequency_per_month)
+          : null,
       contract_type: body.contract_type ?? undefined,
       status: body.status ?? 'draft',
       total_value: body.total_value ?? 0,
       notes: body.notes ?? '',
       items,
     };
+    const hasElevatorItems = items.some((it) => it.item_type === 'elevator' && it.elevator_id);
+    const nextContractType = payload.contract_type ?? body.contract_type;
+    if (nextContractType === 'installation' && hasElevatorItems) {
+      if (!payload.start_date || !payload.end_date) {
+        return res.status(400).json({ error: 'Hợp đồng lắp đặt phải có ngày bắt đầu và ngày kết thúc' });
+      }
+      const startDate = new Date(payload.start_date);
+      const endDate = new Date(payload.end_date);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) {
+        return res.status(400).json({ error: 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu' });
+      }
+      if (!payload.maintenance_frequency_per_month || payload.maintenance_frequency_per_month < 1) {
+        return res.status(400).json({ error: 'Vui lòng nhập tần suất bảo trì (tháng/lần)' });
+      }
+    }
     const doc = await Contract.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
@@ -612,25 +629,6 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
     }
     const contract = await Contract.findById(req.params.id).lean();
     if (!contract) return res.status(404).json({ error: 'Not found' });
-
-    if (status === 'completed' && contract.contract_type === 'installation' && Array.isArray(contract.items)) {
-      const completionDate = contract.end_date || contract.start_date || new Date();
-      const startDateOnly = toDateOnly(completionDate);
-      for (const it of contract.items) {
-        if (!it.elevator_id) continue;
-        const elevator = await Elevator.findById(it.elevator_id).lean();
-        if (!elevator) continue;
-        const months = elevator.maintenance_months != null && elevator.maintenance_months >= 1 ? Number(elevator.maintenance_months) : 0;
-        if (months < 1) continue;
-        const maintenanceStartDate = parseDateOnlyToDate(startDateOnly);
-        const maintenanceEndDate = parseDateOnlyToDate(addMonthsToDateOnly(startDateOnly, months));
-        if (!maintenanceStartDate || !maintenanceEndDate) continue;
-        await Elevator.findByIdAndUpdate(it.elevator_id, {
-          maintenance_start_date: maintenanceStartDate,
-          maintenance_end_date: maintenanceEndDate,
-        });
-      }
-    }
 
     const doc = await Contract.findByIdAndUpdate(
       req.params.id,

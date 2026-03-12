@@ -245,6 +245,11 @@ export default function ContractDetail() {
             <Descriptions.Item label="Ngày kết thúc" span={1}>
               {formatDate(contract.end_date)}
             </Descriptions.Item>
+            <Descriptions.Item label="Tần suất bảo trì" span={1}>
+              {contract.maintenance_frequency_per_month != null
+                ? `${contract.maintenance_frequency_per_month} tháng/lần`
+                : '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="Tổng giá trị" span={2}>
               {formatCurrency(contract.total_value)}
             </Descriptions.Item>
@@ -290,33 +295,30 @@ export default function ContractDetail() {
           {contract.contract_type === 'installation' &&
             contract.status === 'completed' &&
             (() => {
-              const elevatorItems = items.filter(
-                (it) => it.item_type === 'elevator' && it.elevator && (it.elevator.maintenance_months != null || it.elevator.maintenance_frequency_per_month != null)
-              );
+              const elevatorItems = items.filter((it) => it.item_type === 'elevator' && it.elevator);
               if (elevatorItems.length === 0) return null;
-              const maintenanceStart = contract.end_date ? dayjs(contract.end_date) : null;
+              const maintenanceStart = contract.start_date ? dayjs(contract.start_date) : null;
+              const maintenanceEnd = contract.end_date ? dayjs(contract.end_date) : null;
+              const frequencyLabel = contract.maintenance_frequency_per_month
+                ? `${contract.maintenance_frequency_per_month} tháng/lần`
+                : '-';
               return (
                 <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
                   <Text strong style={{ display: 'block', marginBottom: 4 }}>
-                    Thời hạn bảo trì (tính từ ngày hoàn thành hợp đồng)
+                    Thời hạn và lịch bảo trì theo hợp đồng
                   </Text>
                   <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                    Lịch bảo trì được tạo tự động khi hợp đồng có ngày bắt đầu/kết thúc và chuyển trạng thái Hoàn thành.
+                    Lịch bảo trì được tạo tự động trong khoảng ngày bắt đầu đến ngày kết thúc hợp đồng.
                   </Text>
                   <Table
                     dataSource={elevatorItems.map((it) => {
-                      const months = it.elevator?.maintenance_months ?? 0;
-                      const endDate = maintenanceStart && months > 0 ? maintenanceStart.add(months, 'month') : null;
                       return {
                         key: it.id || it.elevator_id,
                         elevator_id: it.elevator_id,
                         name: it.elevator?.name || 'Thang máy',
                         start_date: maintenanceStart?.format('DD-MM-YYYY') || '-',
-                        end_date: endDate?.format('DD-MM-YYYY') || '-',
-                        frequency:
-                          it.elevator?.maintenance_frequency_per_month != null
-                            ? `${it.elevator.maintenance_frequency_per_month} tháng/lần`
-                            : '-',
+                        end_date: maintenanceEnd?.format('DD-MM-YYYY') || '-',
+                        frequency: frequencyLabel,
                       };
                     })}
                     columns={[

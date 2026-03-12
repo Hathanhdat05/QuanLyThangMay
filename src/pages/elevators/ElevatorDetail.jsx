@@ -4,7 +4,6 @@ import { Card, Descriptions, Spin, Typography, Button, Space, message, Image } f
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import { api, getImageUrl } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
-import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
@@ -48,8 +47,6 @@ export default function ElevatorDetail() {
     );
   }
 
-  const formatDate = (d) => (d ? dayjs(d).format('DD/MM/YYYY') : '-');
-
   return (
     <div>
       <Space style={{ marginBottom: 24 }}>
@@ -89,14 +86,6 @@ export default function ElevatorDetail() {
           <Descriptions.Item label="Tải trọng (kg)">{elevator.capacity ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="Tốc độ (m/s)">{elevator.speed ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="Mô tả">{elevator.description || '-'}</Descriptions.Item>
-          <Descriptions.Item label="Chu kỳ bảo trì (tháng)">
-            {elevator.maintenance_months != null ? elevator.maintenance_months : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Tần suất bảo trì (tháng/lần)">
-            {elevator.maintenance_frequency_per_month != null
-              ? `${elevator.maintenance_frequency_per_month} tháng/lần`
-              : '-'}
-          </Descriptions.Item>
         </Descriptions>
       </Card>
     </div>

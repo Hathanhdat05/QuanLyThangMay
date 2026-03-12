@@ -104,20 +104,6 @@ export default function ElevatorList() {
     },
     { title: 'Tốc độ (m/s)', dataIndex: 'speed', key: 'speed' },
     {
-      title: 'Số tháng bảo trì',
-      dataIndex: 'maintenance_months',
-      key: 'maintenance_months',
-      render: (v) => (v != null ? v : '-'),
-      sorter: (a, b) => (a.maintenance_months ?? 0) - (b.maintenance_months ?? 0),
-    },
-    {
-      title: 'Tần suất bảo trì',
-      dataIndex: 'maintenance_frequency_per_month',
-      key: 'maintenance_frequency_per_month',
-      render: (v) => (v != null ? `${v} tháng/lần` : '-'),
-      sorter: (a, b) => (a.maintenance_frequency_per_month ?? 0) - (b.maintenance_frequency_per_month ?? 0),
-    },
-    {
       title: 'Thao tác',
       key: 'actions',
       width: 150,

@@ -88,6 +88,7 @@ export default function ContractForm() {
       ...data,
       start_date: data.start_date ? dayjs(data.start_date) : null,
       end_date: data.end_date ? dayjs(data.end_date) : null,
+      maintenance_frequency_per_month: data.maintenance_frequency_per_month ?? 1,
     });
     setLineItems(
       (data.contract_products || []).map((cp, i) => ({
@@ -167,6 +168,10 @@ export default function ContractForm() {
       contract_type: values.contract_type,
       start_date: values.start_date?.format('YYYY-MM-DD') || null,
       end_date: values.end_date?.format('YYYY-MM-DD') || null,
+      maintenance_frequency_per_month:
+        values.maintenance_frequency_per_month != null && values.maintenance_frequency_per_month !== ''
+          ? Number(values.maintenance_frequency_per_month)
+          : null,
       status: values.status || 'draft',
       total_value: totalValue,
       notes: values.notes || '',
@@ -181,6 +186,9 @@ export default function ContractForm() {
           unit_price: item.unit_price || 0,
         })),
     };
+    if (values.contract_type !== 'installation') {
+      payload.maintenance_frequency_per_month = null;
+    }
 
     if (isEdit) {
       const { error } = await api.put(`/contracts/${id}`, payload);
@@ -312,7 +320,7 @@ export default function ContractForm() {
         form={form}
         layout="vertical"
         onFinish={onFinish}
-        initialValues={{ status: 'draft', contract_type: 'installation' }}
+        initialValues={{ status: 'draft', contract_type: 'installation', maintenance_frequency_per_month: 1 }}
       >
         <Card title="Thông tin hợp đồng" style={{ marginBottom: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -351,12 +359,56 @@ export default function ContractForm() {
               />
             </Form.Item>
 
-            <Form.Item name="start_date" label="Ngày bắt đầu">
+            <Form.Item
+              name="start_date"
+              label="Ngày bắt đầu"
+              rules={[{ required: true, message: 'Vui lòng chọn ngày bắt đầu' }]}
+            >
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
 
-            <Form.Item name="end_date" label="Ngày kết thúc">
+            <Form.Item
+              name="end_date"
+              label="Ngày kết thúc"
+              rules={[
+                { required: true, message: 'Vui lòng chọn ngày kết thúc' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const start = getFieldValue('start_date');
+                    if (!start || !value || value.isSame(start) || value.isAfter(start)) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu'));
+                  },
+                }),
+              ]}
+            >
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, curr) => prev.contract_type !== curr.contract_type}
+            >
+              {({ getFieldValue }) => (
+                <Form.Item
+                  name="maintenance_frequency_per_month"
+                  label="Tần suất bảo trì (tháng/lần)"
+                  rules={
+                    getFieldValue('contract_type') === 'installation'
+                      ? [{ required: true, message: 'Vui lòng nhập tần suất bảo trì' }]
+                      : []
+                  }
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={1}
+                    max={36}
+                    placeholder="VD: 1"
+                    disabled={getFieldValue('contract_type') !== 'installation'}
+                  />
+                </Form.Item>
+              )}
             </Form.Item>
 
             <Form.Item name="status" label="Trạng thái">
