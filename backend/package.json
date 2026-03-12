@@ -13,7 +13,8 @@
     "seed:contracts": "node src/scripts/seedContracts.js",
     "seed:contracts:reset": "node src/scripts/seedContracts.js --reset --count 50",
     "seed:error-reports": "node src/scripts/seedErrorReports.js",
-    "seed:error-reports:reset": "node src/scripts/seedErrorReports.js --reset --count 15"
+    "seed:error-reports:reset": "node src/scripts/seedErrorReports.js --reset --count 15",
+    "migrate:maintenance:past-completed": "node src/scripts/migratePastMaintenanceToCompleted.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

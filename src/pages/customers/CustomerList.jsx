@@ -232,7 +232,7 @@ export default function CustomerList() {
         rowKey="id"
         loading={loading}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} khách hàng` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} khách hàng` }}
         scroll={{ x: 'max-content' }}
       />
     </div>

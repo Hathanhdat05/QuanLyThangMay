@@ -431,7 +431,7 @@ export default function ContractList() {
         rowKey="id"
         loading={loading}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} hợp đồng` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} hợp đồng` }}
         scroll={{ x: 'max-content' }}
       />
     </div>

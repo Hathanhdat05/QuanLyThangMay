@@ -33,6 +33,19 @@ export default function ContractForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const startDateValue = Form.useWatch('start_date', form);
+  const durationYearsValue = Form.useWatch('contract_duration_years', form);
+
+  useEffect(() => {
+    const start = startDateValue;
+    const years = Number(durationYearsValue || 0);
+    if (!start || !start.isValid() || !Number.isFinite(years) || years < 1) return;
+    const computedEndDate = start.add(years, 'year');
+    const currentEndDate = form.getFieldValue('end_date');
+    if (!currentEndDate || !dayjs(currentEndDate).isSame(computedEndDate, 'day')) {
+      form.setFieldValue('end_date', computedEndDate);
+    }
+  }, [startDateValue, durationYearsValue, form]);
 
   useEffect(() => {
     let isMounted = true;
@@ -88,6 +101,10 @@ export default function ContractForm() {
       ...data,
       start_date: data.start_date ? dayjs(data.start_date) : null,
       end_date: data.end_date ? dayjs(data.end_date) : null,
+      contract_duration_years:
+        data.start_date && data.end_date
+          ? Math.max(1, Math.round(dayjs(data.end_date).diff(dayjs(data.start_date), 'year', true)))
+          : 1,
       maintenance_frequency_per_month: data.maintenance_frequency_per_month ?? 1,
     });
     setLineItems(
@@ -168,6 +185,10 @@ export default function ContractForm() {
       contract_type: values.contract_type,
       start_date: values.start_date?.format('YYYY-MM-DD') || null,
       end_date: values.end_date?.format('YYYY-MM-DD') || null,
+      contract_duration_years:
+        values.contract_duration_years != null && values.contract_duration_years !== ''
+          ? Number(values.contract_duration_years)
+          : null,
       maintenance_frequency_per_month:
         values.maintenance_frequency_per_month != null && values.maintenance_frequency_per_month !== ''
           ? Number(values.maintenance_frequency_per_month)
@@ -320,7 +341,12 @@ export default function ContractForm() {
         form={form}
         layout="vertical"
         onFinish={onFinish}
-        initialValues={{ status: 'draft', contract_type: 'installation', maintenance_frequency_per_month: 1 }}
+        initialValues={{
+          status: 'draft',
+          contract_type: 'installation',
+          contract_duration_years: 1,
+          maintenance_frequency_per_month: 1,
+        }}
       >
         <Card title="Thông tin hợp đồng" style={{ marginBottom: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -368,22 +394,19 @@ export default function ContractForm() {
             </Form.Item>
 
             <Form.Item
-              name="end_date"
-              label="Ngày kết thúc"
-              rules={[
-                { required: true, message: 'Vui lòng chọn ngày kết thúc' },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    const start = getFieldValue('start_date');
-                    if (!start || !value || value.isSame(start) || value.isAfter(start)) {
-                      return Promise.resolve();
-                    }
-                    return Promise.reject(new Error('Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu'));
-                  },
-                }),
-              ]}
+              name="contract_duration_years"
+              label="Thời gian hợp đồng (năm)"
+              rules={[{ required: true, message: 'Vui lòng nhập thời gian hợp đồng' }]}
             >
-              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+              <InputNumber style={{ width: '100%' }} min={1} max={30} placeholder="VD: 2" />
+            </Form.Item>
+
+            <Form.Item
+              name="end_date"
+              label="Ngày kết thúc (tự động)"
+              rules={[{ required: true, message: 'Không thể tính ngày kết thúc' }]}
+            >
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" disabled />
             </Form.Item>
 
             <Form.Item

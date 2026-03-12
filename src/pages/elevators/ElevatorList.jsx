@@ -189,7 +189,7 @@ export default function ElevatorList() {
         rowKey="id"
         loading={loading}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} thang máy` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} thang máy` }}
       />
     </div>
   );

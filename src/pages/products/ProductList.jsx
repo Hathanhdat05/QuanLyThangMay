@@ -192,7 +192,7 @@ export default function ProductList() {
         rowKey="id"
         loading={loading}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} sản phẩm` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} sản phẩm` }}
       />
     </div>
   );

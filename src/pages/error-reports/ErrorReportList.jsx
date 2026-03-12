@@ -252,7 +252,7 @@ export default function ErrorReportList() {
         rowKey="id"
         loading={loading}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} báo lỗi` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} báo lỗi` }}
         scroll={{ x: 'max-content' }}
       />
     </div>

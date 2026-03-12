@@ -114,7 +114,7 @@ export default function UserList() {
         dataSource={users}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} user` }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (total) => `Tổng ${total} user` }}
       />
     </div>
   );
