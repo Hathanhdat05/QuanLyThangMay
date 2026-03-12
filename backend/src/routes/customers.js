@@ -158,6 +158,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const body = { ...(req.body || {}) };
+    body.province = String(body.province || '').trim();
+    body.district = String(body.district || '').trim();
+    body.addressDetail = String(body.addressDetail || '').trim();
+    if (!body.province || !body.district) {
+      return res.status(400).json({
+        error: 'Province and district are required',
+      });
+    }
     if (!body.customerId) body.customerId = await generateUniqueCustomerId();
     body.address = buildAddress(body.province, body.district, body.addressDetail) || body.address || '';
     const doc = new Customer(body);

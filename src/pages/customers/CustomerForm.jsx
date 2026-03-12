@@ -95,6 +95,8 @@ export default function CustomerForm() {
     );
   }
 
+  const districtOptions = districtsByProvince[selectedProvince] ?? [];
+
   return (
     <div>
       <Space style={{ marginBottom: 24 }}>
@@ -140,7 +142,11 @@ export default function CustomerForm() {
             <Select placeholder="Chọn khu vực" allowClear options={regionOptions} />
           </Form.Item>
 
-          <Form.Item name="province" label="Tỉnh / Thành phố">
+          <Form.Item
+            name="province"
+            label="Tỉnh / Thành phố"
+            rules={[{ required: true, message: 'Vui lòng chọn tỉnh/thành phố' }]}
+          >
             <Select
               placeholder="Chọn tỉnh/thành phố"
               allowClear
@@ -154,18 +160,25 @@ export default function CustomerForm() {
             />
           </Form.Item>
 
-          <Form.Item name="district" label="Quận / Huyện">
+          <Form.Item
+            name="district"
+            label="Quận / Huyện"
+            rules={[{ required: true, message: 'Vui lòng chọn quận/huyện' }]}
+          >
             <Select
               placeholder="Chọn quận/huyện"
               allowClear
               showSearch
               optionFilterProp="label"
-              options={districtsByProvince[selectedProvince] ?? []}
+              options={districtOptions}
               disabled={!selectedProvince}
             />
           </Form.Item>
 
-          <Form.Item name="addressDetail" label="Địa chỉ chi tiết">
+          <Form.Item
+            name="addressDetail"
+            label="Địa chỉ chi tiết"
+          >
             <Input placeholder="Số nhà, tên đường, thôn/xóm..." />
           </Form.Item>
 
