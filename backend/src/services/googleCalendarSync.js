@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
-import { parseDateOnlyToDate } from '../utils/dateOnly.js';
+import { toDateOnly } from '../utils/dateOnly.js';
 
 const GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const DEFAULT_TIMEZONE = process.env.GOOGLE_CALENDAR_TIMEZONE || 'Asia/Ho_Chi_Minh';
@@ -56,11 +56,14 @@ function getScheduleDescription(schedule) {
 }
 
 function toEventDate(scheduleDate) {
-  const start = parseDateOnlyToDate(scheduleDate) || new Date(scheduleDate);
-  start.setHours(9, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(10, 0, 0, 0);
-  return { start: start.toISOString(), end: end.toISOString() };
+  const dateOnly = toDateOnly(scheduleDate);
+  if (!dateOnly) return null;
+  // Keep dateTime in local wall-clock format and pair with timeZone field.
+  // This avoids runtime/server timezone shifting that caused 1-day + 7-hour drift.
+  return {
+    start: `${dateOnly}T09:00:00`,
+    end: `${dateOnly}T10:00:00`,
+  };
 }
 
 async function ensureAclRule(calendar, calendarId, scope) {
@@ -166,6 +169,7 @@ async function createGoogleEventForSchedule(schedule) {
   const calendar = await getCalendarClient();
   const calendarId = await ensureCompanyCalendarId();
   const when = toEventDate(schedule.scheduled_date);
+  if (!when) throw new Error('Invalid scheduled_date for Google Calendar sync');
 
   const result = await calendar.events.insert({
     calendarId,
@@ -201,6 +205,7 @@ async function updateGoogleEventForSchedule(schedule) {
   const calendar = await getCalendarClient();
   const calendarId = await ensureCompanyCalendarId();
   const when = toEventDate(schedule.scheduled_date);
+  if (!when) throw new Error('Invalid scheduled_date for Google Calendar sync');
 
   await calendar.events.patch({
     calendarId,
