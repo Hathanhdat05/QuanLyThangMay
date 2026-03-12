@@ -22,6 +22,7 @@ import maintenanceScheduleRoutes from './routes/maintenanceSchedules.js';
 import maintenanceOrderRoutes from './routes/maintenanceOrders.js';
 import { runMaintenanceNotifications } from './jobs/maintenanceNotifications.js';
 import { migrateScheduledDatesToDateOnly } from './jobs/migrateDateOnlyScheduledDates.js';
+import { migratePastMaintenanceToCompleted } from './jobs/migratePastMaintenanceToCompleted.js';
 import { bootstrapGoogleCalendarOnStartup } from './services/googleCalendarSync.js';
 
 const app = express();
@@ -29,6 +30,9 @@ const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 const isDev = process.env.NODE_ENV !== 'production';
+const RUN_PAST_MAINTENANCE_MIGRATION_ON_STARTUP =
+  String(process.env.RUN_PAST_MAINTENANCE_MIGRATION_ON_STARTUP ?? 'true').toLowerCase() !==
+  'false';
 
 const allowedOrigins = new Set(
   CORS_ORIGIN.split(',')
@@ -90,6 +94,17 @@ connectDB()
     migrateScheduledDatesToDateOnly().catch((err) =>
       console.error('Date-only migration failed:', err?.message || err)
     );
+    if (RUN_PAST_MAINTENANCE_MIGRATION_ON_STARTUP) {
+      migratePastMaintenanceToCompleted()
+        .then(({ todayDateOnly, schedulesUpdated, ordersUpdated }) => {
+          console.log(
+            `[startup] past maintenance migration done: today=${todayDateOnly} schedules=${schedulesUpdated} orders=${ordersUpdated}`
+          );
+        })
+        .catch((err) =>
+          console.error('Past maintenance migration failed:', err?.message || err)
+        );
+    }
     bootstrapGoogleCalendarOnStartup().catch((err) =>
       console.error('Google Calendar bootstrap startup error:', err?.message || err)
     );
