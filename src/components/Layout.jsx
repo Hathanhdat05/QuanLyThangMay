@@ -87,23 +87,11 @@ async function setupBrowserPushSubscription() {
   return true;
 }
 
-async function getBrowserPushStatus() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    return 'unsupported';
-  }
-  if (Notification.permission !== 'granted') return 'disabled';
-  const registration = await navigator.serviceWorker.register('/push-sw.js');
-  const subscription = await registration.pushManager.getSubscription();
-  return subscription ? 'enabled' : 'disabled';
-}
-
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [pushStatus, setPushStatus] = useState('checking');
-  const [pushLoading, setPushLoading] = useState(false);
   const socketRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -148,36 +136,11 @@ export default function Layout() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    setupBrowserPushSubscription()
-      .catch(() => {})
-      .finally(() => {
-        getBrowserPushStatus()
-          .then(setPushStatus)
-          .catch(() => setPushStatus('disabled'));
-      });
+    setupBrowserPushSubscription().catch(() => {});
   }, [profile?.id]);
 
   const handleBellClick = useCallback(() => {
-    setupBrowserPushSubscription()
-      .catch(() => {})
-      .finally(() => {
-        getBrowserPushStatus()
-          .then(setPushStatus)
-          .catch(() => setPushStatus('disabled'));
-      });
-  }, []);
-
-  const handleEnableBrowserPush = useCallback(async () => {
-    setPushLoading(true);
-    try {
-      await setupBrowserPushSubscription();
-    } catch {
-      // ignore and refresh status below
-    } finally {
-      const status = await getBrowserPushStatus().catch(() => 'disabled');
-      setPushStatus(status);
-      setPushLoading(false);
-    }
+    setupBrowserPushSubscription().catch(() => {});
   }, []);
 
   const handleNotificationOpenChange = useCallback(
@@ -289,42 +252,6 @@ export default function Layout() {
             </Button>
           </Tooltip>
         )}
-      </div>
-
-      <div
-        style={{
-          padding: '10px 16px',
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ fontWeight: 500, fontSize: 13 }}>Thông báo trình duyệt</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {pushStatus === 'enabled'
-              ? 'Đã bật'
-              : pushStatus === 'unsupported'
-                ? 'Trình duyệt không hỗ trợ'
-                : pushStatus === 'checking'
-                  ? 'Đang kiểm tra...'
-                  : 'Chưa bật'}
-          </Text>
-        </div>
-        <Button
-          size="small"
-          type={pushStatus === 'enabled' ? 'default' : 'primary'}
-          loading={pushLoading}
-          disabled={pushStatus === 'unsupported' || pushStatus === 'enabled'}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEnableBrowserPush();
-          }}
-        >
-          {pushStatus === 'enabled' ? 'Đã bật' : 'Bật thông báo trình duyệt'}
-        </Button>
       </div>
 
       <div style={{ overflow: 'auto', flex: 1 }}>

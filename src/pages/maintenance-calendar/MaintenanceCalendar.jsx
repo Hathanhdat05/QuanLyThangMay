@@ -209,6 +209,10 @@ export default function MaintenanceCalendar() {
     setCompanyFeedUrl(data?.calendarUrl || '');
   }, []);
 
+  useEffect(() => {
+    fetchCompanyFeedUrl();
+  }, [fetchCompanyFeedUrl]);
+
   const handleCopyCompanyFeedUrl = useCallback(async () => {
     if (!companyFeedUrl) {
       message.warning('Bạn cần bấm "Lấy link chia sẻ" trước.');
@@ -290,23 +294,19 @@ export default function MaintenanceCalendar() {
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600 }}>Google Calendar (Lịch dùng chung)</div>
+              <div style={{ fontWeight: 600 }}>Đồng bộ lịch với Google Calendar</div>
               <div style={{ color: '#8c8c8c', fontSize: 12 }}>
-                {companyFeedUrl ? 'Đã sẵn sàng link chia sẻ lịch' : 'Chưa lấy link chia sẻ'}
+                {companyFeedLoading
+                  ? 'Đang tải link chia sẻ...'
+                  : companyFeedUrl
+                    ? 'Đã sẵn sàng link chia sẻ lịch'
+                    : 'Chưa lấy được link chia sẻ'}
               </div>
-              {companyFeedUrl && (
-                <div style={{ marginTop: 4, color: '#8c8c8c', fontSize: 12, wordBreak: 'break-all' }}>
-                  {companyFeedUrl}
-                </div>
-              )}
             </div>
             <Space>
-              <Button loading={companyFeedLoading} onClick={fetchCompanyFeedUrl}>
-                Lấy link chia sẻ
-              </Button>
               <Button
                 type={companyFeedCopied ? 'default' : 'primary'}
-                disabled={!companyFeedUrl}
+                disabled={!companyFeedUrl || companyFeedLoading}
                 onClick={handleCopyCompanyFeedUrl}
               >
                 {companyFeedCopied ? 'Đã copy' : 'Copy link chia sẻ'}

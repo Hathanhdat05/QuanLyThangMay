@@ -147,6 +147,21 @@ export async function getGoogleCalendarSharedLink() {
   return `https://calendar.google.com/calendar/u/0?cid=${encodeURIComponent(calendarId)}`;
 }
 
+export async function bootstrapGoogleCalendarOnStartup() {
+  if (!isGoogleCalendarConfigured()) {
+    console.log('Google Calendar bootstrap skipped: service account is not configured.');
+    return { ok: false, skipped: true };
+  }
+
+  const calendarId = await ensureCompanyCalendarId();
+  if (!calendarId) {
+    throw new Error('Cannot resolve company calendar id during startup bootstrap');
+  }
+
+  console.log('Google Calendar bootstrap ready. Calendar ID:', calendarId);
+  return { ok: true, calendarId };
+}
+
 async function createGoogleEventForSchedule(schedule) {
   const calendar = await getCalendarClient();
   const calendarId = await ensureCompanyCalendarId();

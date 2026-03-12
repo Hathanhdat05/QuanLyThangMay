@@ -22,6 +22,7 @@ import maintenanceScheduleRoutes from './routes/maintenanceSchedules.js';
 import maintenanceOrderRoutes from './routes/maintenanceOrders.js';
 import { runMaintenanceNotifications } from './jobs/maintenanceNotifications.js';
 import { migrateScheduledDatesToDateOnly } from './jobs/migrateDateOnlyScheduledDates.js';
+import { bootstrapGoogleCalendarOnStartup } from './services/googleCalendarSync.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -88,6 +89,9 @@ connectDB()
   .then(() => {
     migrateScheduledDatesToDateOnly().catch((err) =>
       console.error('Date-only migration failed:', err?.message || err)
+    );
+    bootstrapGoogleCalendarOnStartup().catch((err) =>
+      console.error('Google Calendar bootstrap startup error:', err?.message || err)
     );
     httpServer.listen(PORT, () => {
       console.log(`Server running at http://localhost:${PORT}`);
