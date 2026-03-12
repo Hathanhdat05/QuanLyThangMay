@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Typography, message, Tag, Select } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Typography, message, Tag, Select, Input } from 'antd';
+import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../lib/api';
 
@@ -28,12 +28,14 @@ export default function MaintenanceOrderList() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState(null);
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
   const fetchOrders = async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter) params.set('status', statusFilter);
+    if (search) params.set('search', search);
     const path = params.toString() ? `/maintenance-orders?${params}` : '/maintenance-orders';
     const { data, error } = await api.get(path);
     if (error) {
@@ -46,7 +48,7 @@ export default function MaintenanceOrderList() {
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
   const columns = [
     {
@@ -128,6 +130,14 @@ export default function MaintenanceOrderList() {
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
+        <Input
+          placeholder="Tìm theo hợp đồng, khách hàng, thang máy..."
+          prefix={<SearchOutlined />}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          allowClear
+          style={{ width: 340 }}
+        />
         <Select
           placeholder="Lọc trạng thái"
           allowClear

@@ -418,6 +418,36 @@ router.get('/:id/error-reports', async (req, res) => {
   }
 });
 
+router.get('/:id/maintenance-schedules', async (req, res) => {
+  try {
+    const contract = await Contract.findById(req.params.id).select('_id').lean();
+    if (!contract) return res.status(404).json({ error: 'Not found' });
+
+    const schedules = await MaintenanceSchedule.find({ contract_id: req.params.id })
+      .sort({ scheduled_date: 1, createdAt: 1 })
+      .lean();
+
+    const data = schedules.map((s) => ({
+      id: s._id?.toHexString(),
+      contract_id: s.contract_id?.toHexString?.() ?? s.contract_id,
+      elevator_id: s.elevator_id?.toHexString?.() ?? s.elevator_id,
+      scheduled_date: s.scheduled_date,
+      title: s.title || '',
+      status: s.status || 'planned',
+      contract_number: s.contract_number || '',
+      elevator_name: s.elevator_name || '',
+      customer_id: s.customer_id?.toHexString?.() ?? s.customer_id,
+      customer_name: s.customer_name || '',
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    }));
+
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const doc = await Contract.findById(req.params.id)

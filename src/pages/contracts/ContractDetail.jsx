@@ -33,6 +33,8 @@ export default function ContractDetail() {
   const [loading, setLoading] = useState(false);
   const [errorReports, setErrorReports] = useState([]);
   const [errorReportsLoading, setErrorReportsLoading] = useState(false);
+  const [maintenanceSchedules, setMaintenanceSchedules] = useState([]);
+  const [maintenanceSchedulesLoading, setMaintenanceSchedulesLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
@@ -104,6 +106,29 @@ export default function ContractDetail() {
         setErrorReports([]);
       }
       setErrorReportsLoading(false);
+    };
+
+    run();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+
+    const run = async () => {
+      setMaintenanceSchedulesLoading(true);
+      const { data, error } = await api.get(`/contracts/${id}/maintenance-schedules`);
+      if (!isMounted) return;
+      if (!error && Array.isArray(data)) {
+        setMaintenanceSchedules(data);
+      } else {
+        setMaintenanceSchedules([]);
+      }
+      setMaintenanceSchedulesLoading(false);
     };
 
     run();
@@ -348,106 +373,185 @@ export default function ContractDetail() {
         </Card>
 
         <Card title="Lịch sử bảo trì bảo dưỡng">
-          {errorReportsLoading ? (
+          {maintenanceSchedulesLoading ? (
             <div style={{ textAlign: 'center', padding: 24 }}>
               <Spin />
             </div>
-          ) : errorReports.length === 0 ? (
-            <Text type="secondary">Chưa có bản ghi bảo trì/bảo dưỡng nào liên kết với hợp đồng này.</Text>
           ) : (
-            <Table
-              dataSource={errorReports}
-              rowKey="id"
-              size="small"
-              pagination={{ pageSize: 5 }}
-              columns={[
-                {
-                  title: 'Mã báo lỗi',
-                  dataIndex: 'errorId',
-                  key: 'errorId',
-                  render: (val, record) => (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        navigate(`/error-reports/${record.id}/detail`, {
-                          state: { fromContractId: id },
-                        })
-                      }
-                      style={{ padding: 0 }}
-                    >
-                      {val || record.id}
-                    </Button>
-                  ),
-                },
-                {
-                  title: 'Ngày báo',
-                  dataIndex: 'reported_date',
-                  key: 'reported_date',
-                  render: (v) => formatDate(v),
-                },
-                {
-                  title: 'Tiêu đề',
-                  dataIndex: 'title',
-                  key: 'title',
-                  ellipsis: true,
-                },
-                {
-                  title: 'Trạng thái',
-                  dataIndex: 'status',
-                  key: 'status',
-                  render: (v) => {
-                    const cfg = ERROR_REPORT_STATUS_MAP[v];
-                    return cfg ? <Tag color={cfg.color}>{cfg.label}</Tag> : v;
-                  },
-                },
-                {
-                  title: 'Thang máy',
-                  key: 'elevator',
-                  render: (_, r) => r.elevators?.name || '-',
-                },
-                {
-                  title: 'Hợp đồng liên kết',
-                  key: 'contract',
-                  render: (_, r) => {
-                    if (!r.contracts?.contract_number) return '-';
-                    const typeLabel = r.contracts.contract_type === 'maintenance' ? 'Bảo trì' : r.contracts.contract_type === 'warranty' ? 'Bảo hành' : r.contracts.contract_type || '';
-                    return (
-                      <span>
-                        {r.contract_id === id ? (
-                          <Tag color="blue">HĐ này</Tag>
-                        ) : (
-                          <>
-                            {r.contracts.contract_number}
-                            {typeLabel && <Tag color={r.contracts.contract_type === 'warranty' ? 'purple' : 'gold'}>{typeLabel}</Tag>}
-                          </>
-                        )}
-                      </span>
-                    );
-                  },
-                },
-                {
-                  title: '',
-                  key: 'action',
-                  width: 80,
-                  render: (_, record) =>
-                    record.contract_id === id ? null : (
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<EyeOutlined />}
-                        onClick={() =>
-                          navigate(`/error-reports/${record.id}/detail`, {
-                            state: { fromContractId: id },
-                          })
-                        }
-                      >
-                        Chi tiết
-                      </Button>
-                    ),
-                },
-              ]}
-            />
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <div>
+                <Text strong>Lịch bảo trì định kì</Text>
+                {maintenanceSchedules.length === 0 ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary">Chưa có lịch bảo trì định kì nào được tạo cho hợp đồng này.</Text>
+                  </div>
+                ) : (
+                  <Table
+                    dataSource={maintenanceSchedules}
+                    rowKey="id"
+                    size="small"
+                    pagination={{ pageSize: 5 }}
+                    columns={[
+                      {
+                        title: 'Ngày lịch',
+                        dataIndex: 'scheduled_date',
+                        key: 'scheduled_date',
+                        width: 120,
+                        render: (v) => formatDate(v),
+                      },
+                      {
+                        title: 'Tiêu đề',
+                        dataIndex: 'title',
+                        key: 'title',
+                        ellipsis: true,
+                        render: (val, record) => (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() =>
+                              navigate(`/maintenance-orders/schedule/${record.id}/detail`, {
+                                state: { fromContractId: id },
+                              })
+                            }
+                            style={{ padding: 0 }}
+                          >
+                            {val || record.id}
+                          </Button>
+                        ),
+                      },
+                      {
+                        title: 'Thang máy',
+                        dataIndex: 'elevator_name',
+                        key: 'elevator_name',
+                        width: 200,
+                        render: (v) => v || '-',
+                      },
+                      {
+                        title: 'Trạng thái',
+                        dataIndex: 'status',
+                        key: 'status',
+                        width: 130,
+                        render: (v) => {
+                          const cfg = v === 'completed'
+                            ? { label: 'Đã hoàn thành', color: 'success' }
+                            : v === 'cancelled'
+                              ? { label: 'Đã hủy', color: 'default' }
+                              : { label: 'Dự kiến', color: 'default' };
+                          return <Tag color={cfg.color}>{cfg.label}</Tag>;
+                        },
+                      },
+                    ]}
+                  />
+                )}
+              </div>
+
+              <div>
+                <Text strong>Báo lỗi / bảo dưỡng phát sinh</Text>
+                {errorReportsLoading ? (
+                  <div style={{ textAlign: 'center', padding: 24 }}>
+                    <Spin />
+                  </div>
+                ) : errorReports.length === 0 ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary">Chưa có bản ghi bảo trì/bảo dưỡng nào liên kết với hợp đồng này.</Text>
+                  </div>
+                ) : (
+                  <Table
+                    dataSource={errorReports}
+                    rowKey="id"
+                    size="small"
+                    pagination={{ pageSize: 5 }}
+                    columns={[
+                      {
+                        title: 'Mã báo lỗi',
+                        dataIndex: 'errorId',
+                        key: 'errorId',
+                        render: (val, record) => (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() =>
+                              navigate(`/error-reports/${record.id}/detail`, {
+                                state: { fromContractId: id },
+                              })
+                            }
+                            style={{ padding: 0 }}
+                          >
+                            {val || record.id}
+                          </Button>
+                        ),
+                      },
+                      {
+                        title: 'Ngày báo',
+                        dataIndex: 'reported_date',
+                        key: 'reported_date',
+                        render: (v) => formatDate(v),
+                      },
+                      {
+                        title: 'Tiêu đề',
+                        dataIndex: 'title',
+                        key: 'title',
+                        ellipsis: true,
+                      },
+                      {
+                        title: 'Trạng thái',
+                        dataIndex: 'status',
+                        key: 'status',
+                        render: (v) => {
+                          const cfg = ERROR_REPORT_STATUS_MAP[v];
+                          return cfg ? <Tag color={cfg.color}>{cfg.label}</Tag> : v;
+                        },
+                      },
+                      {
+                        title: 'Thang máy',
+                        key: 'elevator',
+                        render: (_, r) => r.elevators?.name || '-',
+                      },
+                      {
+                        title: 'Hợp đồng liên kết',
+                        key: 'contract',
+                        render: (_, r) => {
+                          if (!r.contracts?.contract_number) return '-';
+                          const typeLabel = r.contracts.contract_type === 'maintenance' ? 'Bảo trì' : r.contracts.contract_type === 'warranty' ? 'Bảo hành' : r.contracts.contract_type || '';
+                          return (
+                            <span>
+                              {r.contract_id === id ? (
+                                <Tag color="blue">HĐ này</Tag>
+                              ) : (
+                                <>
+                                  {r.contracts.contract_number}
+                                  {typeLabel && <Tag color={r.contracts.contract_type === 'warranty' ? 'purple' : 'gold'}>{typeLabel}</Tag>}
+                                </>
+                              )}
+                            </span>
+                          );
+                        },
+                      },
+                      {
+                        title: '',
+                        key: 'action',
+                        width: 80,
+                        render: (_, record) =>
+                          record.contract_id === id ? null : (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EyeOutlined />}
+                              onClick={() =>
+                                navigate(`/error-reports/${record.id}/detail`, {
+                                  state: { fromContractId: id },
+                                })
+                              }
+                            >
+                              Chi tiết
+                            </Button>
+                          ),
+                      },
+                    ]}
+                  />
+                )}
+              </div>
+            </Space>
           )}
         </Card>
       </Space>

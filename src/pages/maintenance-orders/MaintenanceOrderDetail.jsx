@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
   Descriptions,
@@ -41,8 +41,10 @@ export default function MaintenanceOrderDetail() {
   const [products, setProducts] = useState([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const location = useLocation();
   const { id, scheduleId } = useParams();
   const { isAdmin } = useAuth();
+  const fromContractId = location.state?.fromContractId;
 
   const formatDate = (val) => {
     if (!val) return '-';
@@ -157,7 +159,11 @@ export default function MaintenanceOrderDetail() {
       <Space style={{ marginBottom: 24 }}>
         <Button
           icon={<ArrowLeftOutlined />}
-          onClick={() => (scheduleId ? navigate('/maintenance-calendar') : navigate('/maintenance-orders'))}
+          onClick={() =>
+            fromContractId
+              ? navigate(`/contracts/${fromContractId}/detail`)
+              : (scheduleId ? navigate('/maintenance-calendar') : navigate('/maintenance-orders'))
+          }
         >
           Quay lại
         </Button>

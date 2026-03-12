@@ -78,7 +78,7 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { from, to, status } = req.query;
+    const { from, to, status, search } = req.query;
     const filter = {};
     if (from || to) {
       const fromDateOnly = toDateOnly(from);
@@ -90,22 +90,71 @@ router.get('/', async (req, res) => {
     }
     if (status) filter.status = status;
 
-    const list = await MaintenanceOrder.find(filter)
-      .populate('contract_id', 'contract_number')
-      .populate('elevator_id', 'name')
-      .populate('customer_id', 'name')
-      .sort({ scheduled_date: 1 })
-      .lean();
+    let list = [];
+    if (search) {
+      const searchRegex = new RegExp(String(search), 'i');
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: 'contracts',
+            localField: 'contract_id',
+            foreignField: '_id',
+            as: 'contract',
+          },
+        },
+        { $unwind: { path: '$contract', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: 'customers',
+            localField: 'customer_id',
+            foreignField: '_id',
+            as: 'customer',
+          },
+        },
+        { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: 'elevators',
+            localField: 'elevator_id',
+            foreignField: '_id',
+            as: 'elevator',
+          },
+        },
+        { $unwind: { path: '$elevator', preserveNullAndEmptyArrays: true } },
+        {
+          $match: {
+            $or: [
+              { 'contract.contract_number': { $regex: searchRegex } },
+              { 'customer.name': { $regex: searchRegex } },
+              { 'elevator.name': { $regex: searchRegex } },
+            ],
+          },
+        },
+        { $sort: { scheduled_date: 1 } },
+      ];
+      list = await MaintenanceOrder.aggregate(pipeline);
+    } else {
+      list = await MaintenanceOrder.find(filter)
+        .populate('contract_id', 'contract_number')
+        .populate('elevator_id', 'name')
+        .populate('customer_id', 'name')
+        .sort({ scheduled_date: 1 })
+        .lean();
+    }
 
     const data = list.map((o) => {
       const out = { ...o, id: o._id?.toHexString(), _id: undefined };
       out.scheduled_date = toDateOnly(o.scheduled_date) || o.scheduled_date;
-      out.contract_id = o.contract_id?._id?.toHexString?.() ?? o.contract_id;
-      out.contract_number = o.contract_id?.contract_number;
-      out.elevator_id = o.elevator_id?._id?.toHexString?.() ?? o.elevator_id;
-      out.elevator_name = o.elevator_id?.name;
-      out.customer_id = o.customer_id?._id?.toHexString?.() ?? o.customer_id;
-      out.customer_name = o.customer_id?.name;
+      out.contract_id = o.contract_id?._id?.toHexString?.() ?? o.contract_id ?? o.contract?._id?.toString?.();
+      out.contract_number = o.contract_id?.contract_number ?? o.contract?.contract_number;
+      out.elevator_id = o.elevator_id?._id?.toHexString?.() ?? o.elevator_id ?? o.elevator?._id?.toString?.();
+      out.elevator_name = o.elevator_id?.name ?? o.elevator?.name;
+      out.customer_id = o.customer_id?._id?.toHexString?.() ?? o.customer_id ?? o.customer?._id?.toString?.();
+      out.customer_name = o.customer_id?.name ?? o.customer?.name;
+      delete out.contract;
+      delete out.customer;
+      delete out.elevator;
       return out;
     });
     return res.json(data);
