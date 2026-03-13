@@ -14,6 +14,7 @@ import {
   Input,
   InputNumber,
   Select,
+  DatePicker,
 } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -74,6 +75,7 @@ export default function MaintenanceOrderDetail() {
       form.setFieldsValue({
         work_content: data.work_content || '',
         status: data.status || 'planned',
+        scheduled_date: data.scheduled_date ? dayjs(data.scheduled_date) : null,
         assigned_user_ids: Array.isArray(data.assigned_user_ids) ? data.assigned_user_ids : [],
         items: Array.isArray(data.items) && data.items.length > 0
           ? data.items.map((it) => ({
@@ -123,6 +125,7 @@ export default function MaintenanceOrderDetail() {
         : [],
     };
     if (isAdmin) {
+      payload.scheduled_date = values.scheduled_date ? dayjs(values.scheduled_date).format('YYYY-MM-DD') : null;
       payload.assigned_user_ids = Array.isArray(values.assigned_user_ids) ? values.assigned_user_ids : [];
     }
     const orderId = order?.id;
@@ -207,6 +210,7 @@ export default function MaintenanceOrderDetail() {
               form.setFieldsValue({
                 work_content: order.work_content,
                 status: order.status,
+                scheduled_date: order.scheduled_date ? dayjs(order.scheduled_date) : null,
                 assigned_user_ids: order.assigned_user_ids || [],
                 items: order.items || [],
               });
@@ -286,6 +290,15 @@ export default function MaintenanceOrderDetail() {
                   .map(([k, v]) => ({ value: k, label: v.label }))}
               />
             </Form.Item>
+            {isAdmin && (
+              <Form.Item
+                name="scheduled_date"
+                label="Ngày bảo trì"
+                rules={[{ required: true, message: 'Chọn ngày bảo trì' }]}
+              >
+                <DatePicker format="DD-MM-YYYY" style={{ width: '100%' }} />
+              </Form.Item>
+            )}
             {isAdmin && (
               <Form.Item name="assigned_user_ids" label="Gán cho user">
                 <Select

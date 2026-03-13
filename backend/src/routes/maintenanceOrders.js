@@ -274,6 +274,13 @@ router.put('/:id', async (req, res) => {
     if (body.status !== undefined && statusWhitelist.includes(body.status)) {
       doc.status = body.status;
     }
+    if (currentUser.role === 'admin' && body.scheduled_date !== undefined) {
+      const nextDateOnly = toDateOnly(body.scheduled_date);
+      if (!nextDateOnly) {
+        return res.status(400).json({ error: 'Invalid scheduled_date' });
+      }
+      doc.scheduled_date = nextDateOnly;
+    }
     if (currentUser.role === 'admin' && body.assigned_user_ids !== undefined) {
       doc.assigned_user_ids = toAssignedUserIds(body.assigned_user_ids);
     }
@@ -294,7 +301,7 @@ router.put('/:id', async (req, res) => {
         doc.status === 'cancelled' ? 'cancelled' : doc.status === 'completed' ? 'completed' : 'planned';
       const schedule = await MaintenanceSchedule.findByIdAndUpdate(
         doc.maintenance_schedule_id,
-        { status: scheduleStatus },
+        { status: scheduleStatus, scheduled_date: doc.scheduled_date },
         { new: true }
       ).lean();
       if (schedule) {

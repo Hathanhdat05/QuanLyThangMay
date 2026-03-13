@@ -2,6 +2,7 @@ import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { Notification } from '../models/Notification.js';
 import { PushSubscription } from '../models/PushSubscription.js';
+import { User } from '../models/User.js';
 import { sendWebPushNotification } from '../utils/webPush.js';
 import { addDaysToDateOnly, parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
 import { io } from '../index.js';
@@ -49,6 +50,9 @@ export async function runMaintenanceNotifications() {
   const changedUserIds = new Set();
 
   try {
+    const adminUsers = await User.find({ role: 'admin' }).select('_id').lean();
+    const adminUserIds = adminUsers.map((u) => String(u._id)).filter(Boolean);
+
     const upcomingSchedules = await MaintenanceSchedule.find({
       status: 'planned',
       scheduled_date: { $gt: todayDateOnly, $lte: upcomingToDateOnly },
@@ -61,15 +65,16 @@ export async function runMaintenanceNotifications() {
       const assignedUserIds = Array.isArray(order?.assigned_user_ids)
         ? order.assigned_user_ids.map((id) => String(id)).filter(Boolean)
         : [];
-      if (assignedUserIds.length === 0) continue;
+      const recipientUserIds = [...new Set([...adminUserIds, ...assignedUserIds])];
+      if (recipientUserIds.length === 0) continue;
 
       const scheduleDate = parseDateOnlyToDate(schedule.scheduled_date) || today;
       const referenceDate = parseDateOnlyToDate(todayDateOnly);
-      for (const assignedUserId of assignedUserIds) {
+      for (const recipientUserId of recipientUserIds) {
         const exists = await Notification.findOne({
           type: 'maintenance_schedule_upcoming',
           maintenance_schedule_id: schedule._id,
-          user_id: assignedUserId,
+          user_id: recipientUserId,
           // one notification per schedule per day (D-3 -> D-1)
           reference_date: referenceDate,
         });
@@ -85,15 +90,15 @@ export async function runMaintenanceNotifications() {
           title: 'Nhắc bảo trì định kỳ',
           message: `${customerText}${elevatorText} còn ${dayLabel} nữa đến lịch bảo trì (${dateText}). Vui lòng chuẩn bị nhân sự và xác nhận thực hiện đúng hạn.`,
           type: 'maintenance_schedule_upcoming',
-          user_id: assignedUserId,
+          user_id: recipientUserId,
           maintenance_schedule_id: schedule._id,
           elevator_id: schedule.elevator_id,
           contract_id: schedule.contract_id,
           reference_date: referenceDate,
         });
-        changedUserIds.add(String(assignedUserId));
-        io?.emit?.('notification:new', { ...doc.toJSON(), user_id: String(assignedUserId) });
-        await broadcastBrowserPush(doc, assignedUserId);
+        changedUserIds.add(String(recipientUserId));
+        io?.emit?.('notification:new', { ...doc.toJSON(), user_id: String(recipientUserId) });
+        await broadcastBrowserPush(doc, recipientUserId);
       }
     }
 
