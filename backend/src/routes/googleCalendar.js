@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 import { getGoogleCalendarSharedLink, resyncAllSchedulesToGoogleCalendar } from '../services/googleCalendarSync.js';
 
 const router = Router();
 router.use(authMiddleware);
+router.use(requireViewPermission('maintenanceCalendar'));
 
 router.get('/shared-link', async (_req, res) => {
   try {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Typography, message, Tag, Select, Input } from 'antd';
+import { Table, Button, Space, Typography, message, Tag, Input } from 'antd';
 import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 
 const { Title } = Typography;
 
@@ -13,6 +14,11 @@ const STATUS_MAP = {
   completed: { label: 'Đã hoàn thành', color: 'success' },
   cancelled: { label: 'Đã hủy', color: 'default' },
 };
+
+const STATUS_FILTER_BUTTONS = [
+  { value: 'all', label: 'Tất cả' },
+  ...Object.entries(STATUS_MAP).map(([value, meta]) => ({ value, label: meta.label })),
+];
 
 function toSortTimestamp(value) {
   if (!value) return 0;
@@ -24,16 +30,18 @@ function toSortTimestamp(value) {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
-export default function MaintenanceOrderList() {
+export default function MaintenanceOrderList({ mineOnly = false }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState(null);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const fetchOrders = async () => {
     setLoading(true);
     const params = new URLSearchParams();
+    if (mineOnly) params.set('mine', '1');
     if (statusFilter) params.set('status', statusFilter);
     if (search) params.set('search', search);
     const path = params.toString() ? `/maintenance-orders?${params}` : '/maintenance-orders';
@@ -57,7 +65,11 @@ export default function MaintenanceOrderList() {
       key: 'title',
       ellipsis: true,
       render: (v, record) => (
-        <Button type="link" onClick={() => navigate(`/maintenance-orders/${record.id}/detail`)} style={{ padding: 0 }}>
+        <Button
+          type="link"
+          onClick={() => navigate(`/maintenance-orders/${record.id}/detail`, { state: { fromMyJobs: mineOnly } })}
+          style={{ padding: 0 }}
+        >
           {v || 'Đơn bảo trì'}
         </Button>
       ),
@@ -105,6 +117,26 @@ export default function MaintenanceOrderList() {
         return <Tag color={s.color}>{s.label}</Tag>;
       },
     },
+    ...(isAdmin
+      ? [
+          {
+            title: 'Kỹ thuật viên',
+            key: 'assigned_users',
+            width: 260,
+            render: (_, r) => {
+              const users = Array.isArray(r.assigned_users) ? r.assigned_users : [];
+              if (users.length === 0) return <span style={{ color: '#999' }}>Chưa gán</span>;
+              return (
+                <Space size={[4, 4]} wrap>
+                  {users.map((u) => (
+                    <Tag key={u.id}>{u.full_name || u.email || 'User'}</Tag>
+                  ))}
+                </Space>
+              );
+            },
+          },
+        ]
+      : []),
     {
       title: 'Thao tác',
       key: 'actions',
@@ -113,7 +145,7 @@ export default function MaintenanceOrderList() {
         <Button
           type="link"
           icon={<EyeOutlined />}
-          onClick={() => navigate(`/maintenance-orders/${record.id}/detail`)}
+          onClick={() => navigate(`/maintenance-orders/${record.id}/detail`, { state: { fromMyJobs: mineOnly } })}
         >
           Chi tiết
         </Button>
@@ -125,7 +157,7 @@ export default function MaintenanceOrderList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={4} style={{ margin: 0 }}>
-          Quản lý đơn bảo trì
+          {mineOnly ? 'Công việc của tôi' : 'Quản lý đơn bảo trì'}
         </Title>
       </div>
 
@@ -138,14 +170,20 @@ export default function MaintenanceOrderList() {
           allowClear
           style={{ width: 340 }}
         />
-        <Select
-          placeholder="Lọc trạng thái"
-          allowClear
-          style={{ width: 180 }}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
-        />
+        <Space.Compact>
+          {STATUS_FILTER_BUTTONS.map((item) => {
+            const isActive = (statusFilter ?? 'all') === item.value;
+            return (
+              <Button
+                key={item.value}
+                type={isActive ? 'primary' : 'default'}
+                onClick={() => setStatusFilter(item.value === 'all' ? null : item.value)}
+              >
+                {item.label}
+              </Button>
+            );
+          })}
+        </Space.Compact>
       </Space>
 
       <Table

@@ -22,6 +22,7 @@ import {
 import { io } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
 import { api, API_ORIGIN } from '../lib/api';
+import { hasViewPermission } from '../constants/viewPermissions';
 
 const { Header, Sider, Content } = AntLayout;
 const { Text } = Typography;
@@ -120,19 +121,22 @@ export default function Layout() {
     socketRef.current = socket;
 
     socket.on('notification:new', (notification) => {
+      const targetUserId = notification?.user_id ? String(notification.user_id) : '';
+      if (targetUserId && String(profile?.id || '') !== targetUserId) return;
       setNotifications((prev) => [notification, ...prev].slice(0, 10));
       setUnreadCount((prev) => prev + 1);
       playNotificationSound();
     });
 
-    socket.on('notification:unread-count', ({ count }) => {
+    socket.on('notification:unread-count', ({ user_id, count }) => {
+      if (user_id && String(profile?.id || '') !== String(user_id)) return;
       setUnreadCount(count);
     });
 
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [profile?.id]);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -184,17 +188,30 @@ export default function Layout() {
     }
   };
 
-  const menuItems = [
-    { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-    { key: '/customers', icon: <TeamOutlined />, label: 'Khách hàng' },
-    { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },
-    { key: '/products', icon: <ShoppingOutlined />, label: 'Sản phẩm' },
-    { key: '/elevators', icon: <ToolOutlined />, label: 'Thang máy' },
-    { key: '/error-reports', icon: <WarningOutlined />, label: 'Báo lỗi' },
-    { key: '/maintenance-calendar', icon: <CalendarOutlined />, label: 'Lịch bảo trì' },
-    { key: '/maintenance-orders', icon: <FormOutlined />, label: 'Đơn bảo trì' },
-    ...(isAdmin ? [{ key: '/users', icon: <UserOutlined />, label: 'Quản lý User' }] : []),
+  const menuDefinitions = [
+    { key: '/', icon: <DashboardOutlined />, label: 'Dashboard', permission: 'dashboard' },
+    { key: '/customers', icon: <TeamOutlined />, label: 'Khách hàng', permission: 'customers' },
+    { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng', permission: 'contracts' },
+    { key: '/products', icon: <ShoppingOutlined />, label: 'Sản phẩm', permission: 'products' },
+    { key: '/elevators', icon: <ToolOutlined />, label: 'Thang máy', permission: 'elevators' },
+    { key: '/error-reports', icon: <WarningOutlined />, label: 'Báo lỗi', permission: 'errorReports' },
+    {
+      key: '/maintenance-calendar',
+      icon: <CalendarOutlined />,
+      label: 'Lịch bảo trì',
+      permission: 'maintenanceCalendar',
+    },
+    ...(isAdmin
+      ? [{ key: '/maintenance-orders', icon: <FormOutlined />, label: 'Đơn bảo trì', permission: 'maintenanceOrders' }]
+      : [{ key: '/my-jobs', icon: <FormOutlined />, label: 'Công việc của tôi', permission: 'myJobs' }]),
+    { key: '/notifications', icon: <BellOutlined />, label: 'Thông báo', permission: 'notifications' },
+    { key: '/users', icon: <UserOutlined />, label: 'Quản lý User', permission: 'users', adminOnly: true },
   ];
+
+  const menuItems = menuDefinitions.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    return hasViewPermission(profile, item.permission);
+  });
 
   const selectedKey =
     menuItems.filter((item) => item.key !== '/').find((item) => location.pathname.startsWith(item.key))?.key || '/';

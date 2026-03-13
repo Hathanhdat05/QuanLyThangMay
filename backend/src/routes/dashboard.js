@@ -5,12 +5,13 @@ import { Product } from '../models/Product.js';
 import { Elevator } from '../models/Elevator.js';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 import { toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('dashboard'));
 
 router.get('/', async (req, res) => {
   try {

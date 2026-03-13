@@ -2,8 +2,13 @@ import { Navigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import { useAuth } from '../hooks/useAuth';
 
-export default function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, profile, loading, isAdmin } = useAuth();
+export default function ProtectedRoute({
+  children,
+  adminOnly = false,
+  permission = null,
+  permissionsAny = null,
+}) {
+  const { user, loading, isAdmin, canView, defaultRoute } = useAuth();
 
   if (loading) {
     return (
@@ -18,7 +23,18 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
   }
 
   if (adminOnly && !isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={defaultRoute || '/'} replace />;
+  }
+
+  if (permission && !canView(permission)) {
+    return <Navigate to={defaultRoute || '/'} replace />;
+  }
+
+  if (Array.isArray(permissionsAny) && permissionsAny.length > 0) {
+    const canViewAny = permissionsAny.some((item) => canView(item));
+    if (!canViewAny) {
+      return <Navigate to={defaultRoute || '/'} replace />;
+    }
   }
 
   return children;

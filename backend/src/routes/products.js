@@ -6,11 +6,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.js';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('products'));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Table, Button, Input, Space, Popconfirm, Typography, message, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { api } from '../../lib/api';
+import { VIEW_PERMISSION_OPTIONS } from '../../constants/viewPermissions';
 
 const { Title } = Typography;
 
@@ -60,6 +61,23 @@ export default function UserList() {
           {v === 'admin' ? 'Quản trị viên' : 'Người dùng'}
         </Tag>
       ),
+    },
+    {
+      title: 'Phần được xem',
+      dataIndex: 'view_permissions',
+      key: 'view_permissions',
+      render: (value, record) => {
+        if (record.role === 'admin') return <Tag color="purple">Toàn quyền</Tag>;
+        const permissions = Array.isArray(value) ? value : [];
+        if (permissions.length === 0) return <Tag>Chưa cấu hình</Tag>;
+        const optionMap = new Map(VIEW_PERMISSION_OPTIONS.map((item) => [item.value, item.label]));
+        const labels = permissions.map((key) => optionMap.get(key) || key);
+        return (
+          <span title={labels.join(', ')}>
+            <Tag color="geekblue">{`${labels.length} phần`}</Tag>
+          </span>
+        );
+      },
     },
     {
       title: 'Ngày tạo',

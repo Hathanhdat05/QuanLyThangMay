@@ -1,6 +1,20 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export const VIEW_PERMISSIONS = [
+  'dashboard',
+  'customers',
+  'contracts',
+  'products',
+  'elevators',
+  'errorReports',
+  'maintenanceCalendar',
+  'maintenanceOrders',
+  'myJobs',
+  'notifications',
+  'users',
+];
+
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
@@ -8,6 +22,7 @@ const userSchema = new mongoose.Schema(
     full_name: { type: String, default: '' },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     phone: { type: String, default: '' },
+    view_permissions: [{ type: String, enum: VIEW_PERMISSIONS }],
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

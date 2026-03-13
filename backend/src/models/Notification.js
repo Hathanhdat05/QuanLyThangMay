@@ -10,6 +10,7 @@ const schema = new mongoose.Schema(
       required: true,
     },
     read: { type: Boolean, default: false },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     elevator_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Elevator' },
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract' },
     maintenance_schedule_id: { type: mongoose.Schema.Types.ObjectId, ref: 'MaintenanceSchedule' },
@@ -18,7 +19,7 @@ const schema = new mongoose.Schema(
   { timestamps: true, toJSON: { virtuals: true } }
 );
 
-schema.index({ type: 1, maintenance_schedule_id: 1, reference_date: 1 });
+schema.index({ type: 1, maintenance_schedule_id: 1, reference_date: 1, user_id: 1 }, { unique: true });
 schema.index({ read: 1, createdAt: -1 });
 
 schema.virtual('id').get(function () {

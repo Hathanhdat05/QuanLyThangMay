@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { getWebPushPublicKey, isWebPushEnabled, sendWebPushNotification } from '../utils/webPush.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('notifications'));
 
 router.get('/public-key', (_req, res) => {
   if (!isWebPushEnabled()) {

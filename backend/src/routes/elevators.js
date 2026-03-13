@@ -6,11 +6,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import { Elevator } from '../models/Elevator.js';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('elevators'));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

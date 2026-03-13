@@ -3,6 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, Space, Spin, Select, message, Alert } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { api } from '../../lib/api';
+import {
+  VIEW_PERMISSION_OPTIONS,
+  VIEW_PERMISSION_KEYS,
+  ADMIN_ONLY_VIEW_PERMISSIONS,
+  LEGACY_DEFAULT_USER_VIEW_PERMISSIONS,
+} from '../../constants/viewPermissions';
 
 const { Title } = Typography;
 
@@ -13,6 +19,23 @@ export default function UserForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const selectedRole = Form.useWatch('role', form);
+
+  useEffect(() => {
+    if (selectedRole === 'admin') {
+      form.setFieldValue('view_permissions', [...VIEW_PERMISSION_KEYS]);
+      return;
+    }
+    const current = form.getFieldValue('view_permissions');
+    if (!Array.isArray(current) || current.length === 0) {
+      form.setFieldValue('view_permissions', [...LEGACY_DEFAULT_USER_VIEW_PERMISSIONS]);
+      return;
+    }
+    form.setFieldValue(
+      'view_permissions',
+      current.filter((value) => !ADMIN_ONLY_VIEW_PERMISSIONS.includes(value))
+    );
+  }, [selectedRole, form]);
 
   useEffect(() => {
     if (isEdit) {
@@ -24,7 +47,13 @@ export default function UserForm() {
             message.error('Không tìm thấy user');
             navigate('/users');
           } else {
-            form.setFieldsValue({ ...data, full_name: data.full_name ?? data.fullName });
+            form.setFieldsValue({
+              ...data,
+              full_name: data.full_name ?? data.fullName,
+              view_permissions: Array.isArray(data.view_permissions)
+                ? data.view_permissions
+                : [...LEGACY_DEFAULT_USER_VIEW_PERMISSIONS],
+            });
           }
           setLoading(false);
         });
@@ -38,6 +67,7 @@ export default function UserForm() {
         full_name: values.full_name,
         role: values.role,
         phone: values.phone || '',
+        view_permissions: values.view_permissions || [],
       });
       if (error) {
         message.error('Lỗi cập nhật user');
@@ -52,6 +82,7 @@ export default function UserForm() {
         full_name: values.full_name,
         role: values.role,
         phone: values.phone || '',
+        view_permissions: values.view_permissions || [],
       });
       if (error) {
         message.error(error.message || 'Lỗi tạo user');
@@ -93,7 +124,12 @@ export default function UserForm() {
       )}
 
       <Card style={{ maxWidth: 700 }}>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ role: 'user' }}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ role: 'user', view_permissions: [...LEGACY_DEFAULT_USER_VIEW_PERMISSIONS] }}
+        >
           <Form.Item
             name="full_name"
             label="Họ tên"
@@ -138,6 +174,29 @@ export default function UserForm() {
                 { value: 'admin', label: 'Quản trị viên (Admin)' },
                 { value: 'user', label: 'Người dùng (User)' },
               ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="view_permissions"
+            label="Các phần được xem"
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (selectedRole === 'admin') return Promise.resolve();
+                  if (Array.isArray(value) && value.length > 0) return Promise.resolve();
+                  return Promise.reject(new Error('Vui lòng chọn ít nhất 1 phần cho user'));
+                },
+              },
+            ]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="Chọn các phần user có thể xem"
+              options={VIEW_PERMISSION_OPTIONS.filter((option) =>
+                selectedRole === 'admin' ? true : !ADMIN_ONLY_VIEW_PERMISSIONS.includes(option.value)
+              )}
+              disabled={selectedRole === 'admin'}
             />
           </Form.Item>
 

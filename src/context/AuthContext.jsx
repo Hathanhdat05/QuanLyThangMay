@@ -1,5 +1,10 @@
 import { createContext, useEffect, useState } from 'react';
 import { api, apiConfigured } from '../lib/api';
+import {
+  normalizeViewPermissions,
+  hasViewPermission,
+  getDefaultRouteForProfile,
+} from '../constants/viewPermissions';
 
 export const AuthContext = createContext(null);
 
@@ -8,6 +13,14 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const normalizeProfile = (rawProfile) => {
+    if (!rawProfile) return null;
+    return {
+      ...rawProfile,
+      view_permissions: normalizeViewPermissions(rawProfile.view_permissions, rawProfile.role),
+    };
+  };
+
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await api.get('/auth/me');
@@ -15,7 +28,7 @@ export function AuthProvider({ children }) {
         setProfile(null);
         return;
       }
-      setProfile(data);
+      setProfile(normalizeProfile(data));
     } catch {
       setProfile(null);
     }
@@ -43,8 +56,9 @@ export function AuthProvider({ children }) {
           setUser(null);
           setProfile(null);
         } else {
-          setUser(data);
-          setProfile(data);
+          const normalized = normalizeProfile(data);
+          setUser(normalized);
+          setProfile(normalized);
         }
         setLoading(false);
       })
@@ -63,8 +77,9 @@ export function AuthProvider({ children }) {
     if (error) return { data: null, error };
     if (data?.token) {
       api.setToken(data.token);
-      setUser(data.user);
-      setProfile(data.user);
+      const normalized = normalizeProfile(data.user);
+      setUser(normalized);
+      setProfile(normalized);
     }
     return { data, error: null };
   };
@@ -76,10 +91,12 @@ export function AuthProvider({ children }) {
   };
 
   const isAdmin = profile?.role === 'admin';
+  const canView = (permission) => hasViewPermission(profile, permission);
+  const defaultRoute = getDefaultRouteForProfile(profile);
 
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, signIn, signOut, isAdmin, fetchProfile }}
+      value={{ user, profile, loading, signIn, signOut, isAdmin, fetchProfile, canView, defaultRoute }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import { Notification } from '../models/Notification.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 
 const router = Router();
 const NOTIFICATION_TYPE = 'maintenance_schedule_upcoming';
 
 router.use(authMiddleware);
+router.use(requireViewPermission('notifications'));
 
 function formatNotification(n) {
   const id = n._id?.toHexString?.() ?? n._id;
   const out = { ...n, id, _id: undefined, __v: undefined };
+  out.user_id = n.user_id?._id?.toHexString?.() ?? n.user_id;
   if (n.elevator_id && typeof n.elevator_id === 'object') {
     out.elevator = n.elevator_id;
     out.elevator_id = n.elevator_id._id?.toHexString?.() ?? n.elevator_id._id;
@@ -33,6 +35,7 @@ router.get('/', async (req, res) => {
 
     const filter = {};
     filter.type = NOTIFICATION_TYPE;
+    filter.user_id = req.userId;
     if (req.query.read === 'true') filter.read = true;
     else if (req.query.read === 'false') filter.read = false;
 
@@ -59,9 +62,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/unread-count', async (_req, res) => {
+router.get('/unread-count', async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ type: NOTIFICATION_TYPE, read: false });
+    const count = await Notification.countDocuments({ type: NOTIFICATION_TYPE, user_id: req.userId, read: false });
     return res.json({ count });
   } catch {
     return res.status(500).json({ error: 'Server error' });
@@ -71,7 +74,7 @@ router.get('/unread-count', async (_req, res) => {
 router.patch('/:id/read', async (req, res) => {
   try {
     const doc = await Notification.findByIdAndUpdate(
-      req.params.id,
+      { _id: req.params.id, user_id: req.userId },
       { read: true },
       { new: true },
     ).lean();
@@ -82,9 +85,9 @@ router.patch('/:id/read', async (req, res) => {
   }
 });
 
-router.patch('/mark-all-read', async (_req, res) => {
+router.patch('/mark-all-read', async (req, res) => {
   try {
-    await Notification.updateMany({ type: NOTIFICATION_TYPE, read: false }, { read: true });
+    await Notification.updateMany({ type: NOTIFICATION_TYPE, user_id: req.userId, read: false }, { read: true });
     return res.json({ ok: true });
   } catch {
     return res.status(500).json({ error: 'Server error' });
@@ -93,7 +96,7 @@ router.patch('/mark-all-read', async (_req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const doc = await Notification.findByIdAndDelete(req.params.id);
+    const doc = await Notification.findOneAndDelete({ _id: req.params.id, user_id: req.userId });
     if (!doc) return res.status(404).json({ error: 'Not found' });
     return res.json({ ok: true });
   } catch {

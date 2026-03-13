@@ -29,6 +29,14 @@ import { api, apiConfigured } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 
 const { Title, Text } = Typography;
+const WEEKDAY_COLUMNS = [
+  { key: 1, label: 'Thứ 2' },
+  { key: 2, label: 'Thứ 3' },
+  { key: 3, label: 'Thứ 4' },
+  { key: 4, label: 'Thứ 5' },
+  { key: 5, label: 'Thứ 6' },
+  { key: 6, label: 'Thứ 7' },
+];
 
 const STATUS_MAP = {
   pending: { label: 'Chờ xử lý', color: 'default' },
@@ -100,6 +108,25 @@ function getGreeting() {
   if (hour < 12) return 'Chào buổi sáng';
   if (hour < 18) return 'Chào buổi chiều';
   return 'Chào buổi tối';
+}
+
+function parseDateOnly(value) {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [yyyy, mm, dd] = value.split('-').map(Number);
+    return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 0, 0, 0, 0);
+}
+
+function formatDateShort(value) {
+  const date = parseDateOnly(value);
+  if (!date) return '-';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
 }
 
 export default function Dashboard() {
@@ -182,33 +209,24 @@ export default function Dashboard() {
     },
   ];
 
-  const upcomingColumns = [
-    {
-      title: 'Tiêu đề',
-      dataIndex: 'title',
-      key: 'title',
-      ellipsis: true,
-      render: (text, record) => (
-        <a onClick={() => navigate(`/maintenance-orders/schedule/${record.id}/detail`)}>{text}</a>
-      ),
-    },
-    {
-      title: 'Ngày hẹn',
-      dataIndex: 'scheduled_date',
-      key: 'scheduled_date',
-      render: (v) => (v ? (typeof v === 'string' ? v.split('T')[0] : v) : '-'),
-    },
-    {
-      title: 'Khách hàng',
-      key: 'customer',
-      render: (_, r) => r.customers?.name || '-',
-    },
-    {
-      title: 'Thang máy',
-      key: 'elevator',
-      render: (_, r) => r.elevators?.name || '-',
-    },
-  ];
+  const upcomingEventsInWeek = upcomingEvents.filter((event) => {
+    const date = parseDateOnly(event?.scheduled_date);
+    if (!date) return false;
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return date >= start && date <= end;
+  });
+
+  const upcomingEventsByWeekday = WEEKDAY_COLUMNS.map((weekday) => ({
+    ...weekday,
+    events: upcomingEventsInWeek.filter((event) => {
+      const date = parseDateOnly(event?.scheduled_date);
+      return date?.getDay() === weekday.key;
+    }),
+  }));
+  const visibleUpcomingEventsCount = upcomingEventsByWeekday.reduce((count, day) => count + day.events.length, 0);
 
   if (loading) {
     return (
@@ -351,14 +369,72 @@ export default function Dashboard() {
               </Button>
             }
           >
-            <Table
-              columns={upcomingColumns}
-              dataSource={upcomingEvents}
-              rowKey="id"
-              pagination={false}
-              size="small"
-              locale={{ emptyText: 'Không có lịch bảo trì sắp tới' }}
-            />
+            {visibleUpcomingEventsCount === 0 ? (
+              <Text type="secondary">Không có lịch bảo trì trong 7 ngày tới</Text>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(6, minmax(170px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {upcomingEventsByWeekday.map((dayColumn) => (
+                    <div
+                      key={dayColumn.key}
+                      style={{
+                        border: `1px solid ${token.colorBorderSecondary}`,
+                        borderRadius: 8,
+                        padding: 8,
+                        minHeight: 140,
+                        background: token.colorBgContainer,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          marginBottom: 8,
+                          fontSize: 12,
+                          color: token.colorTextSecondary,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {dayColumn.label}
+                      </div>
+                      {dayColumn.events.length === 0 ? (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Không có lịch
+                        </Text>
+                      ) : (
+                        dayColumn.events.map((event) => (
+                          <div
+                            key={event.id}
+                            style={{
+                              marginBottom: 8,
+                              padding: '6px 8px',
+                              borderRadius: 6,
+                              background: token.colorPrimaryBg,
+                              border: `1px solid ${token.colorPrimaryBorder}`,
+                            }}
+                          >
+                            <div style={{ marginBottom: 4, fontSize: 11, color: token.colorTextSecondary }}>
+                              {formatDateShort(event.scheduled_date)}
+                            </div>
+                            <a
+                              style={{ display: 'block', lineHeight: 1.4 }}
+                              onClick={() => navigate(`/maintenance-orders/schedule/${event.id}/detail`)}
+                            >
+                              {event.title || 'Lịch bảo trì'}
+                            </a>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         </Col>
       </Row>

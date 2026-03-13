@@ -5,7 +5,7 @@ import { Contract } from '../models/Contract.js';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 import { generateNextContractNumber, previewNextContractNumber } from '../utils/contractNumber.js';
 import { parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
 import { syncScheduleToGoogleCalendar, deleteScheduleFromGoogleCalendar } from '../services/googleCalendarSync.js';
@@ -13,6 +13,7 @@ import { syncScheduleToGoogleCalendar, deleteScheduleFromGoogleCalendar } from '
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('contracts'));
 
 function formatDateYYYYMMDD(date) {
   const yyyy = String(date.getFullYear());

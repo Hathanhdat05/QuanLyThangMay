@@ -61,8 +61,8 @@ function toEventDate(scheduleDate) {
   // Keep dateTime in local wall-clock format and pair with timeZone field.
   // This avoids runtime/server timezone shifting that caused 1-day + 7-hour drift.
   return {
-    start: `${dateOnly}T09:00:00`,
-    end: `${dateOnly}T10:00:00`,
+    start: `${dateOnly}T11:30:00`,
+    end: `${dateOnly}T12:30:00`,
   };
 }
 
@@ -181,9 +181,9 @@ async function createGoogleEventForSchedule(schedule) {
       end: { dateTime: when.end, timeZone: DEFAULT_TIMEZONE },
       reminders: {
         // Google Calendar API does not allow useDefault=true with overrides together.
-        // Keep a fixed email reminder at 12h before event.
+        // Use popup reminder 10 minutes before event.
         useDefault: false,
-        overrides: [{ method: 'email', minutes: 1 }],
+        overrides: [{ method: 'popup', minutes: 10 }],
       },
       extendedProperties: {
         private: {
@@ -218,9 +218,9 @@ async function updateGoogleEventForSchedule(schedule) {
       end: { dateTime: when.end, timeZone: DEFAULT_TIMEZONE },
       reminders: {
         // Google Calendar API does not allow useDefault=true with overrides together.
-        // Keep a fixed email reminder at 12h before event.
+        // Use popup reminder 10 minutes before event.
         useDefault: false,
-        overrides: [{ method: 'email', minutes: 12 * 60 }],
+        overrides: [{ method: 'popup', minutes: 10 }],
       },
       extendedProperties: {
         private: {

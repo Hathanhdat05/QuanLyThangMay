@@ -1,10 +1,13 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 import { getGoogleCalendarSharedLink } from '../services/googleCalendarSync.js';
 
 const router = Router();
 
-router.get('/shared-link', authMiddleware, async (_req, res) => {
+router.use(authMiddleware);
+router.use(requireViewPermission('maintenanceCalendar'));
+
+router.get('/shared-link', async (_req, res) => {
   try {
     const calendarUrl = await getGoogleCalendarSharedLink();
     return res.json({ calendarUrl });
@@ -16,7 +19,7 @@ router.get('/shared-link', authMiddleware, async (_req, res) => {
   }
 });
 
-router.get('/company', authMiddleware, async (_req, res) => {
+router.get('/company', async (_req, res) => {
   try {
     const calendarUrl = await getGoogleCalendarSharedLink();
     return res.json({ calendarUrl });

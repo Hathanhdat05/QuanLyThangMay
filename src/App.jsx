@@ -39,43 +39,44 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<ProtectedRoute permission="dashboard"><Dashboard /></ProtectedRoute>} />
 
-          <Route path="/customers" element={<CustomerList />} />
-          <Route path="/customers/:id/detail" element={<CustomerDetail />} />
+          <Route path="/customers" element={<ProtectedRoute permission="customers"><CustomerList /></ProtectedRoute>} />
+          <Route path="/customers/:id/detail" element={<ProtectedRoute permission="customers"><CustomerDetail /></ProtectedRoute>} />
           <Route path="/customers/new" element={<ProtectedRoute adminOnly><CustomerForm /></ProtectedRoute>} />
           <Route path="/customers/:id" element={<ProtectedRoute adminOnly><CustomerForm /></ProtectedRoute>} />
 
-          <Route path="/products" element={<ProductList />} />
-          <Route path="/products/:id/detail" element={<ProductDetail />} />
+          <Route path="/products" element={<ProtectedRoute permission="products"><ProductList /></ProtectedRoute>} />
+          <Route path="/products/:id/detail" element={<ProtectedRoute permission="products"><ProductDetail /></ProtectedRoute>} />
           <Route path="/products/new" element={<ProtectedRoute adminOnly><ProductForm /></ProtectedRoute>} />
           <Route path="/products/:id" element={<ProtectedRoute adminOnly><ProductForm /></ProtectedRoute>} />
 
-          <Route path="/elevators" element={<ElevatorList />} />
-          <Route path="/elevators/:id/detail" element={<ElevatorDetail />} />
+          <Route path="/elevators" element={<ProtectedRoute permission="elevators"><ElevatorList /></ProtectedRoute>} />
+          <Route path="/elevators/:id/detail" element={<ProtectedRoute permission="elevators"><ElevatorDetail /></ProtectedRoute>} />
           <Route path="/elevators/new" element={<ProtectedRoute adminOnly><ElevatorForm /></ProtectedRoute>} />
           <Route path="/elevators/:id" element={<ProtectedRoute adminOnly><ElevatorForm /></ProtectedRoute>} />
 
-          <Route path="/contracts" element={<ContractList />} />
-          <Route path="/contracts/:id/detail" element={<ContractDetail />} />
+          <Route path="/contracts" element={<ProtectedRoute permission="contracts"><ContractList /></ProtectedRoute>} />
+          <Route path="/contracts/:id/detail" element={<ProtectedRoute permission="contracts"><ContractDetail /></ProtectedRoute>} />
           <Route path="/contracts/new" element={<ProtectedRoute adminOnly><ContractForm /></ProtectedRoute>} />
           <Route path="/contracts/:id" element={<ProtectedRoute adminOnly><ContractForm /></ProtectedRoute>} />
 
-          <Route path="/error-reports" element={<ErrorReportList />} />
-          <Route path="/error-reports/:id/detail" element={<ErrorReportDetail />} />
-          <Route path="/error-reports/new" element={<ErrorReportForm />} />
-          <Route path="/error-reports/:id" element={<ErrorReportForm />} />
+          <Route path="/error-reports" element={<ProtectedRoute permission="errorReports"><ErrorReportList /></ProtectedRoute>} />
+          <Route path="/error-reports/:id/detail" element={<ProtectedRoute permission="errorReports"><ErrorReportDetail /></ProtectedRoute>} />
+          <Route path="/error-reports/new" element={<ProtectedRoute permission="errorReports"><ErrorReportForm /></ProtectedRoute>} />
+          <Route path="/error-reports/:id" element={<ProtectedRoute permission="errorReports"><ErrorReportForm /></ProtectedRoute>} />
 
-          <Route path="/maintenance-calendar" element={<MaintenanceCalendar />} />
-          <Route path="/maintenance-orders" element={<MaintenanceOrderList />} />
-          <Route path="/maintenance-orders/schedule/:scheduleId/detail" element={<MaintenanceOrderDetail />} />
-          <Route path="/maintenance-orders/:id/detail" element={<MaintenanceOrderDetail />} />
+          <Route path="/maintenance-calendar" element={<ProtectedRoute permission="maintenanceCalendar"><MaintenanceCalendar /></ProtectedRoute>} />
+          <Route path="/maintenance-orders" element={<ProtectedRoute adminOnly permission="maintenanceOrders"><MaintenanceOrderList /></ProtectedRoute>} />
+          <Route path="/my-jobs" element={<ProtectedRoute permission="myJobs"><MaintenanceOrderList mineOnly /></ProtectedRoute>} />
+          <Route path="/maintenance-orders/schedule/:scheduleId/detail" element={<ProtectedRoute permissionsAny={['maintenanceOrders', 'myJobs']}><MaintenanceOrderDetail /></ProtectedRoute>} />
+          <Route path="/maintenance-orders/:id/detail" element={<ProtectedRoute permissionsAny={['maintenanceOrders', 'myJobs']}><MaintenanceOrderDetail /></ProtectedRoute>} />
 
-          <Route path="/notifications" element={<NotificationList />} />
+          <Route path="/notifications" element={<ProtectedRoute permission="notifications"><NotificationList /></ProtectedRoute>} />
 
-          <Route path="/users" element={<ProtectedRoute adminOnly><UserList /></ProtectedRoute>} />
-          <Route path="/users/new" element={<ProtectedRoute adminOnly><UserForm /></ProtectedRoute>} />
-          <Route path="/users/:id" element={<ProtectedRoute adminOnly><UserForm /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute adminOnly permission="users"><UserList /></ProtectedRoute>} />
+          <Route path="/users/new" element={<ProtectedRoute adminOnly permission="users"><UserForm /></ProtectedRoute>} />
+          <Route path="/users/:id" element={<ProtectedRoute adminOnly permission="users"><UserForm /></ProtectedRoute>} />
         </Route>
       </Routes>
     </>

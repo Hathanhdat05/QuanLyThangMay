@@ -3,11 +3,12 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import ExcelJS from 'exceljs';
 import { Customer } from '../models/Customer.js';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('customers'));
 
 function formatDateYYYYMMDD(date) {
   const yyyy = String(date.getFullYear());

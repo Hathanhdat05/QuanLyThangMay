@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 import { toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('maintenanceCalendar'));
 
 router.get('/', async (req, res) => {
   try {

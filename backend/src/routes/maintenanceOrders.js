@@ -2,17 +2,88 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { User } from '../models/User.js';
+import { authMiddleware, requireAnyViewPermissions } from '../middleware/auth.js';
 import { syncScheduleToGoogleCalendar } from '../services/googleCalendarSync.js';
 import { parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireAnyViewPermissions(['maintenanceOrders', 'myJobs']));
+
+const USER_EDITABLE_STATUSES = ['planned', 'in_progress', 'completed'];
+const ADMIN_EDITABLE_STATUSES = ['planned', 'in_progress', 'completed', 'cancelled'];
+
+async function getCurrentUser(req) {
+  if (!req.userId) return null;
+  return User.findById(req.userId).select('role').lean();
+}
+
+function isAssignedUser(order, userId) {
+  if (!userId || !Array.isArray(order?.assigned_user_ids)) return false;
+  const target = String(userId);
+  return order.assigned_user_ids.some((item) => {
+    const assignedId =
+      item?._id?.toHexString?.() ??
+      item?._id ??
+      item?.id ??
+      item?.toHexString?.() ??
+      item;
+    return String(assignedId) === target;
+  });
+}
+
+function canEditOrder(order, user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return isAssignedUser(order, user._id);
+}
+
+function toAssignedUserIds(rawValue) {
+  if (!Array.isArray(rawValue)) return [];
+  return rawValue
+    .map((id) => String(id || '').trim())
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+}
+
+function toOrderResponse(order, currentUser) {
+  const out = { ...order, id: order._id?.toHexString?.() ?? order.id, _id: undefined };
+  out.scheduled_date = toDateOnly(order.scheduled_date) || order.scheduled_date;
+  out.contract_id = order.contract_id?._id?.toHexString?.() ?? order.contract_id ?? order.contract?._id?.toString?.();
+  out.contract_number = order.contract_id?.contract_number ?? order.contract?.contract_number;
+  out.elevator_id = order.elevator_id?._id?.toHexString?.() ?? order.elevator_id ?? order.elevator?._id?.toString?.();
+  out.elevator_name = order.elevator_id?.name ?? order.elevator?.name;
+  out.customer_id = order.customer_id?._id?.toHexString?.() ?? order.customer_id ?? order.customer?._id?.toString?.();
+  out.customer_name = order.customer_id?.name ?? order.customer?.name;
+  out.assigned_user_ids = Array.isArray(order.assigned_user_ids)
+    ? order.assigned_user_ids.map(
+        (u) => u?._id?.toHexString?.() ?? u?._id ?? u?.id ?? u?.toHexString?.() ?? String(u)
+      )
+    : [];
+  const assignedUsersSource = Array.isArray(order.assigned_users) ? order.assigned_users : order.assigned_user_ids;
+  out.assigned_users = Array.isArray(assignedUsersSource)
+    ? assignedUsersSource
+        .filter((u) => u && typeof u === 'object' && (u._id || u.id))
+        .map((u) => ({
+          id: u._id?.toHexString?.() ?? u.id ?? String(u._id || ''),
+          full_name: u.full_name || '',
+          email: u.email || '',
+        }))
+    : [];
+  out.can_edit = canEditOrder(order, currentUser);
+  delete out.contract;
+  delete out.customer;
+  delete out.elevator;
+  return out;
+}
 
 /** Lấy hoặc tạo đơn bảo trì theo lịch (cho lịch cũ chưa có đơn) */
 router.get('/by-schedule/:scheduleId', async (req, res) => {
   try {
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
     const { scheduleId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(scheduleId)) {
       return res.status(400).json({ error: 'Invalid schedule id' });
@@ -21,6 +92,7 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
       .populate('contract_id', 'contract_number')
       .populate('elevator_id', 'name')
       .populate('customer_id', 'name')
+      .populate('assigned_user_ids', 'full_name email')
       .populate('items.product_id', 'name unit price')
       .lean();
 
@@ -42,24 +114,19 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
         title,
         status: 'planned',
         work_content: '',
+        assigned_user_ids: [],
         items: [],
       });
       order = await MaintenanceOrder.findById(newOrder._id)
         .populate('contract_id', 'contract_number')
         .populate('elevator_id', 'name')
         .populate('customer_id', 'name')
+        .populate('assigned_user_ids', 'full_name email')
         .populate('items.product_id', 'name unit price')
         .lean();
     }
 
-    const out = { ...order, id: order._id?.toHexString(), _id: undefined };
-    out.scheduled_date = toDateOnly(order.scheduled_date) || order.scheduled_date;
-    out.contract_id = order.contract_id?._id?.toHexString?.() ?? order.contract_id;
-    out.contract_number = order.contract_id?.contract_number;
-    out.elevator_id = order.elevator_id?._id?.toHexString?.() ?? order.elevator_id;
-    out.elevator_name = order.elevator_id?.name;
-    out.customer_id = order.customer_id?._id?.toHexString?.() ?? order.customer_id;
-    out.customer_name = order.customer_id?.name;
+    const out = toOrderResponse(order, currentUser);
     out.items = (order.items || []).map((it) => ({
       product_id: it.product_id?._id?.toHexString?.() ?? it.product_id,
       product_name: it.product_id?.name,
@@ -78,7 +145,9 @@ router.get('/by-schedule/:scheduleId', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { from, to, status, search } = req.query;
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
+    const { from, to, status, search, mine } = req.query;
     const filter = {};
     if (from || to) {
       const fromDateOnly = toDateOnly(from);
@@ -89,6 +158,9 @@ router.get('/', async (req, res) => {
       if (Object.keys(filter.scheduled_date).length === 0) delete filter.scheduled_date;
     }
     if (status) filter.status = status;
+    if (mine === '1' || currentUser.role !== 'admin') {
+      filter.assigned_user_ids = new mongoose.Types.ObjectId(req.userId);
+    }
 
     let list = [];
     if (search) {
@@ -123,6 +195,14 @@ router.get('/', async (req, res) => {
         },
         { $unwind: { path: '$elevator', preserveNullAndEmptyArrays: true } },
         {
+          $lookup: {
+            from: 'users',
+            localField: 'assigned_user_ids',
+            foreignField: '_id',
+            as: 'assigned_users',
+          },
+        },
+        {
           $match: {
             $or: [
               { 'contract.contract_number': { $regex: searchRegex } },
@@ -139,24 +219,12 @@ router.get('/', async (req, res) => {
         .populate('contract_id', 'contract_number')
         .populate('elevator_id', 'name')
         .populate('customer_id', 'name')
+        .populate('assigned_user_ids', 'full_name email')
         .sort({ scheduled_date: 1 })
         .lean();
     }
 
-    const data = list.map((o) => {
-      const out = { ...o, id: o._id?.toHexString(), _id: undefined };
-      out.scheduled_date = toDateOnly(o.scheduled_date) || o.scheduled_date;
-      out.contract_id = o.contract_id?._id?.toHexString?.() ?? o.contract_id ?? o.contract?._id?.toString?.();
-      out.contract_number = o.contract_id?.contract_number ?? o.contract?.contract_number;
-      out.elevator_id = o.elevator_id?._id?.toHexString?.() ?? o.elevator_id ?? o.elevator?._id?.toString?.();
-      out.elevator_name = o.elevator_id?.name ?? o.elevator?.name;
-      out.customer_id = o.customer_id?._id?.toHexString?.() ?? o.customer_id ?? o.customer?._id?.toString?.();
-      out.customer_name = o.customer_id?.name ?? o.customer?.name;
-      delete out.contract;
-      delete out.customer;
-      delete out.elevator;
-      return out;
-    });
+    const data = list.map((o) => toOrderResponse(o, currentUser));
     return res.json(data);
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -165,22 +233,16 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
     const doc = await MaintenanceOrder.findById(req.params.id)
       .populate('contract_id', 'contract_number')
       .populate('elevator_id', 'name')
       .populate('customer_id', 'name')
+      .populate('assigned_user_ids', 'full_name email')
       .populate('items.product_id', 'name unit price');
     if (!doc) return res.status(404).json({ error: 'Not found' });
-
-    const out = doc.toJSON ? doc.toJSON() : doc;
-    out.id = out._id?.toHexString?.() ?? out.id;
-    out.scheduled_date = toDateOnly(out.scheduled_date) || out.scheduled_date;
-    out.contract_number = doc.contract_id?.contract_number;
-    out.elevator_name = doc.elevator_id?.name;
-    out.customer_name = doc.customer_id?.name;
-    out.contract_id = doc.contract_id?._id?.toHexString?.() ?? doc.contract_id;
-    out.elevator_id = doc.elevator_id?._id?.toHexString?.() ?? doc.elevator_id;
-    out.customer_id = doc.customer_id?._id?.toHexString?.() ?? doc.customer_id;
+    const out = toOrderResponse(doc.toJSON ? doc.toJSON() : doc, currentUser);
     out.items = (doc.items || []).map((it) => ({
       product_id: it.product_id?._id?.toHexString?.() ?? it.product_id,
       product_name: it.product_id?.name,
@@ -197,13 +259,23 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
     const doc = await MaintenanceOrder.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
+    const canEdit = canEditOrder(doc, currentUser);
+    if (!canEdit) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Bạn không được chỉnh sửa đơn bảo trì này' });
+    }
 
     const body = req.body || {};
     if (body.work_content !== undefined) doc.work_content = String(body.work_content ?? '');
-    if (body.status !== undefined && ['planned', 'in_progress', 'completed', 'cancelled'].includes(body.status)) {
+    const statusWhitelist = currentUser.role === 'admin' ? ADMIN_EDITABLE_STATUSES : USER_EDITABLE_STATUSES;
+    if (body.status !== undefined && statusWhitelist.includes(body.status)) {
       doc.status = body.status;
+    }
+    if (currentUser.role === 'admin' && body.assigned_user_ids !== undefined) {
+      doc.assigned_user_ids = toAssignedUserIds(body.assigned_user_ids);
     }
     if (Array.isArray(body.items)) {
       doc.items = body.items
@@ -236,17 +308,10 @@ router.put('/:id', async (req, res) => {
       { path: 'contract_id', select: 'contract_number' },
       { path: 'elevator_id', select: 'name' },
       { path: 'customer_id', select: 'name' },
+      { path: 'assigned_user_ids', select: 'full_name email' },
       { path: 'items.product_id', select: 'name unit price' },
     ]);
-    const out = doc.toJSON ? doc.toJSON() : doc;
-    out.id = out._id?.toHexString?.() ?? out.id;
-    out.scheduled_date = toDateOnly(out.scheduled_date) || out.scheduled_date;
-    out.contract_number = doc.contract_id?.contract_number;
-    out.elevator_name = doc.elevator_id?.name;
-    out.customer_name = doc.customer_id?.name;
-    out.contract_id = doc.contract_id?._id?.toHexString?.() ?? doc.contract_id;
-    out.elevator_id = doc.elevator_id?._id?.toHexString?.() ?? doc.elevator_id;
-    out.customer_id = doc.customer_id?._id?.toHexString?.() ?? doc.customer_id;
+    const out = toOrderResponse(doc.toJSON ? doc.toJSON() : doc, currentUser);
     out.items = (doc.items || []).map((it) => ({
       product_id: it.product_id?._id?.toHexString?.() ?? it.product_id,
       product_name: it.product_id?.name,

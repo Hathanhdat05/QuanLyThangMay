@@ -100,10 +100,9 @@ export default function MaintenanceCalendar() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const [reportsRes, schedulesRes] = await Promise.all([
-        api.get('/error-reports'),
-        api.get('/maintenance-schedules'),
-      ]);
+      const requests = [api.get('/error-reports'), api.get('/maintenance-schedules')];
+      if (!isAdmin) requests.push(api.get('/maintenance-orders?mine=1'));
+      const [reportsRes, schedulesRes, myOrdersRes] = await Promise.all(requests);
       const list = Array.isArray(reportsRes.data) ? reportsRes.data : [];
       const withScheduled = list.filter((r) => r.scheduled_date);
       const reportEvents = withScheduled.map((report) => ({
@@ -115,7 +114,19 @@ export default function MaintenanceCalendar() {
         resource: { ...report, source: 'report' },
       }));
       const schedules = Array.isArray(schedulesRes.data) ? schedulesRes.data : [];
-      const scheduleEvents = schedules.map((s) => ({
+      const assignedScheduleIds = !isAdmin
+        ? new Set(
+            (Array.isArray(myOrdersRes?.data) ? myOrdersRes.data : [])
+              .map((o) => String(o?.maintenance_schedule_id || ''))
+              .filter(Boolean)
+          )
+        : null;
+
+      const visibleSchedules = !isAdmin
+        ? schedules.filter((s) => assignedScheduleIds.has(String(s.id)))
+        : schedules;
+
+      const scheduleEvents = visibleSchedules.map((s) => ({
         id: `schedule-${s.id}`,
         title: s.title || `Bảo trì - ${s.elevator_name || 'Thang máy'}`,
         start: parseCalendarDate(s.scheduled_date),

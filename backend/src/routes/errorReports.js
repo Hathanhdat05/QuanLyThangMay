@@ -6,11 +6,12 @@ import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { generateNextContractNumber } from '../utils/contractNumber.js';
 import { endOfDateOnlyToDate } from '../utils/dateOnly.js';
-import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { authMiddleware, requireAdmin, requireViewPermission } from '../middleware/auth.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireViewPermission('errorReports'));
 
 function formatDateYYYYMMDD(date) {
   const yyyy = String(date.getFullYear());

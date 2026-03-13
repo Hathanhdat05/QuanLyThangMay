@@ -29,6 +29,7 @@ const STATUS_MAP = {
   completed: { label: 'Đã hoàn thành', color: 'success' },
   cancelled: { label: 'Đã hủy', color: 'default' },
 };
+const USER_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 
 const formatCurrency = (val) =>
   val != null ? `${Number(val).toLocaleString('vi-VN')} đ` : '-';
@@ -39,12 +40,15 @@ export default function MaintenanceOrderDetail() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
   const { id, scheduleId } = useParams();
   const { isAdmin } = useAuth();
   const fromContractId = location.state?.fromContractId;
+  const fromMyJobs = location.state?.fromMyJobs;
+  const canEdit = isAdmin || order?.can_edit;
 
   const formatDate = (val) => {
     if (!val) return '-';
@@ -70,6 +74,7 @@ export default function MaintenanceOrderDetail() {
       form.setFieldsValue({
         work_content: data.work_content || '',
         status: data.status || 'planned',
+        assigned_user_ids: Array.isArray(data.assigned_user_ids) ? data.assigned_user_ids : [],
         items: Array.isArray(data.items) && data.items.length > 0
           ? data.items.map((it) => ({
               product_id: it.product_id,
@@ -79,8 +84,8 @@ export default function MaintenanceOrderDetail() {
           : [],
       });
     } else {
-      message.error('Không tìm thấy đơn bảo trì');
-      navigate('/maintenance-orders');
+      message.error(error?.message || 'Không tìm thấy đơn bảo trì');
+      navigate(fromMyJobs ? '/my-jobs' : '/maintenance-orders');
     }
     setLoading(false);
   };
@@ -90,10 +95,17 @@ export default function MaintenanceOrderDetail() {
     setProducts(Array.isArray(data) ? data : []);
   };
 
+  const loadUsers = async () => {
+    if (!isAdmin) return;
+    const { data } = await api.get('/users');
+    setUsers(Array.isArray(data) ? data.filter((u) => u.role === 'user') : []);
+  };
+
   useEffect(() => {
     loadProducts();
+    loadUsers();
     if (id || scheduleId) fetchOrder();
-  }, [id, scheduleId]);
+  }, [id, scheduleId, isAdmin]);
 
   const onFinish = async (values) => {
     setSaving(true);
@@ -110,6 +122,9 @@ export default function MaintenanceOrderDetail() {
             }))
         : [],
     };
+    if (isAdmin) {
+      payload.assigned_user_ids = Array.isArray(values.assigned_user_ids) ? values.assigned_user_ids : [];
+    }
     const orderId = order?.id;
     if (!orderId) {
       message.error('Không thể cập nhật');
@@ -156,31 +171,51 @@ export default function MaintenanceOrderDetail() {
 
   return (
     <div>
-      <Space style={{ marginBottom: 24 }}>
-        <Button
-          icon={<ArrowLeftOutlined />}
-          onClick={() =>
-            fromContractId
-              ? navigate(`/contracts/${fromContractId}/detail`)
-              : (scheduleId ? navigate('/maintenance-calendar') : navigate('/maintenance-orders'))
-          }
-        >
-          Quay lại
-        </Button>
-        <Title level={4} style={{ margin: 0 }}>
-          Chi tiết đơn bảo trì
-        </Title>
-        {isAdmin && !editing && (
-          <Button type="primary" onClick={() => setEditing(true)}>
-            Chỉnh sửa
+      <div
+        style={{
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <Space>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() =>
+              fromContractId
+                ? navigate(`/contracts/${fromContractId}/detail`)
+                : (scheduleId ? navigate('/maintenance-calendar') : navigate(fromMyJobs ? '/my-jobs' : '/maintenance-orders'))
+            }
+          >
+            Quay lại
           </Button>
-        )}
-        {editing && (
-          <Button onClick={() => { setEditing(false); form.setFieldsValue({ work_content: order.work_content, status: order.status, items: order.items || [] }); }}>
-            Hủy
-          </Button>
-        )}
-      </Space>
+          <Title level={4} style={{ margin: 0 }}>
+            Chi tiết đơn bảo trì
+          </Title>
+        </Space>
+        <Space>
+          {canEdit && !editing && (
+            <Button type="primary" onClick={() => setEditing(true)}>
+              Chỉnh sửa
+            </Button>
+          )}
+          {editing && (
+            <Button onClick={() => {
+              setEditing(false);
+              form.setFieldsValue({
+                work_content: order.work_content,
+                status: order.status,
+                assigned_user_ids: order.assigned_user_ids || [],
+                items: order.items || [],
+              });
+            }}>
+              Hủy
+            </Button>
+          )}
+        </Space>
+      </div>
 
       <Card title="Thông tin khách hàng & hợp đồng" style={{ marginBottom: 16 }}>
         <Descriptions column={2} bordered size="small">
@@ -224,6 +259,17 @@ export default function MaintenanceOrderDetail() {
           <Descriptions.Item label="Trạng thái" span={1}>
             {statusCfg ? <Tag color={statusCfg.color}>{statusCfg.label}</Tag> : order.status || '-'}
           </Descriptions.Item>
+          <Descriptions.Item label="Người phụ trách" span={2}>
+            {Array.isArray(order.assigned_users) && order.assigned_users.length > 0 ? (
+              <Space size={[4, 4]} wrap>
+                {order.assigned_users.map((u) => (
+                  <Tag key={u.id}>{u.full_name || u.email || 'User'}</Tag>
+                ))}
+              </Space>
+            ) : (
+              <span style={{ color: '#999' }}>Chưa gán</span>
+            )}
+          </Descriptions.Item>
         </Descriptions>
       </Card>
 
@@ -235,9 +281,25 @@ export default function MaintenanceOrderDetail() {
             </Form.Item>
             <Form.Item name="status" label="Trạng thái">
               <Select
-                options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
+                options={Object.entries(STATUS_MAP)
+                  .filter(([k]) => (isAdmin ? true : USER_STATUS_OPTIONS.includes(k) || k === order.status))
+                  .map(([k, v]) => ({ value: k, label: v.label }))}
               />
             </Form.Item>
+            {isAdmin && (
+              <Form.Item name="assigned_user_ids" label="Gán cho user">
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Chọn 1 hoặc nhiều user"
+                  optionFilterProp="label"
+                  options={users.map((u) => ({
+                    value: u.id,
+                    label: `${u.full_name || '(Chưa có tên)'} - ${u.email}`,
+                  }))}
+                />
+              </Form.Item>
+            )}
           </Card>
 
           <Card

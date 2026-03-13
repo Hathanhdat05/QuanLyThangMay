@@ -36,6 +36,7 @@ const schema = new mongoose.Schema(
       enum: ['planned', 'in_progress', 'completed', 'cancelled'],
       default: 'planned',
     },
+    assigned_user_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }],
     items: [maintenanceOrderItemSchema],
   },
   { timestamps: true, toJSON: { virtuals: true } }
