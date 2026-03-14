@@ -30,12 +30,13 @@ import { useAuth } from '../hooks/useAuth';
 
 const { Title, Text } = Typography;
 const WEEKDAY_COLUMNS = [
-  { key: 1, label: 'Thứ 2' },
-  { key: 2, label: 'Thứ 3' },
-  { key: 3, label: 'Thứ 4' },
-  { key: 4, label: 'Thứ 5' },
-  { key: 5, label: 'Thứ 6' },
-  { key: 6, label: 'Thứ 7' },
+  { key: 1, label: 'Th 2' },
+  { key: 2, label: 'Th 3' },
+  { key: 3, label: 'Th 4' },
+  { key: 4, label: 'Th 5' },
+  { key: 5, label: 'Th 6' },
+  { key: 6, label: 'Th 7' },
+  { key: 0, label: 'CN' },
 ];
 
 const STATUS_MAP = {
@@ -209,19 +210,9 @@ export default function Dashboard() {
     },
   ];
 
-  const upcomingEventsInWeek = upcomingEvents.filter((event) => {
-    const date = parseDateOnly(event?.scheduled_date);
-    if (!date) return false;
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return date >= start && date <= end;
-  });
-
   const upcomingEventsByWeekday = WEEKDAY_COLUMNS.map((weekday) => ({
     ...weekday,
-    events: upcomingEventsInWeek.filter((event) => {
+    events: upcomingEvents.filter((event) => {
       const date = parseDateOnly(event?.scheduled_date);
       return date?.getDay() === weekday.key;
     }),
@@ -360,7 +351,7 @@ export default function Dashboard() {
             title={
               <Space>
                 <CalendarOutlined style={{ color: token.colorPrimary }} />
-                <span>Lịch bảo trì sắp tới</span>
+                <span>Lịch bảo trì tuần này</span>
               </Space>
             }
             extra={
@@ -370,13 +361,13 @@ export default function Dashboard() {
             }
           >
             {visibleUpcomingEventsCount === 0 ? (
-              <Text type="secondary">Không có lịch bảo trì trong 7 ngày tới</Text>
+              <Text type="secondary">Không có lịch bảo trì trong tuần này</Text>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(6, minmax(170px, 1fr))',
+                    gridTemplateColumns: 'repeat(7, minmax(150px, 1fr))',
                     gap: 8,
                   }}
                 >

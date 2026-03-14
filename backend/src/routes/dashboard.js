@@ -13,9 +13,23 @@ const router = Router();
 router.use(authMiddleware);
 router.use(requireViewPermission('dashboard'));
 
+function getCurrentWeekRangeDateOnly(baseDate = new Date()) {
+  const current = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0, 0);
+  const day = current.getDay(); // 0 (CN) ... 6 (T7)
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const weekStart = new Date(current);
+  weekStart.setDate(current.getDate() + diffToMonday);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  return {
+    startDateOnly: toDateOnly(weekStart),
+    endDateOnly: toDateOnly(weekEnd),
+  };
+}
+
 router.get('/', async (req, res) => {
   try {
-    const today = toDateOnly(new Date());
+    const { startDateOnly, endDateOnly } = getCurrentWeekRangeDateOnly(new Date());
 
     const [customersCount, contractsCount, productsCount, elevatorsCount, recentReports, upcomingSchedules] =
       await Promise.all([
@@ -30,11 +44,10 @@ router.get('/', async (req, res) => {
           .limit(10)
           .lean(),
         MaintenanceSchedule.find({
-          scheduled_date: { $gte: today },
+          scheduled_date: { $gte: startDateOnly, $lte: endDateOnly },
           status: { $ne: 'cancelled' },
         })
           .sort({ scheduled_date: 1 })
-          .limit(5)
           .lean(),
       ]);
 
