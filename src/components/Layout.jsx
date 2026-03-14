@@ -92,6 +92,7 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [myJobsCount, setMyJobsCount] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const socketRef = useRef(null);
   const navigate = useNavigate();
@@ -111,10 +112,23 @@ export default function Layout() {
     setUnreadCount(data?.count ?? 0);
   }, []);
 
+  const fetchMyJobsCount = useCallback(async () => {
+    if (isAdmin || !hasViewPermission(profile, 'myJobs')) {
+      setMyJobsCount(0);
+      return;
+    }
+    const { data, error } = await api.get('/maintenance-orders?mine=1');
+    if (error) return;
+    const pendingStatuses = new Set(['planned', 'in_progress']);
+    const count = Array.isArray(data) ? data.filter((item) => pendingStatuses.has(item?.status)).length : 0;
+    setMyJobsCount(count);
+  }, [isAdmin, profile]);
+
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
-  }, [location.pathname, fetchNotifications, fetchUnreadCount]);
+    fetchMyJobsCount();
+  }, [location.pathname, fetchNotifications, fetchUnreadCount, fetchMyJobsCount]);
 
   useEffect(() => {
     const socket = io(API_ORIGIN, { transports: ['websocket', 'polling'] });
@@ -185,6 +199,16 @@ export default function Layout() {
     }
     if (n.type === 'maintenance_schedule_upcoming' && n.maintenance_schedule_id) {
       navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+      return;
+    }
+    if (n.type === 'maintenance_order_assigned') {
+      if (n.maintenance_schedule_id) {
+        navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+        return;
+      }
+      if (n.maintenance_order_id) {
+        navigate(`/maintenance-orders/${n.maintenance_order_id}/detail`);
+      }
     }
   };
 
@@ -203,7 +227,17 @@ export default function Layout() {
     },
     ...(isAdmin
       ? [{ key: '/maintenance-orders', icon: <FormOutlined />, label: 'Đơn bảo trì', permission: 'maintenanceOrders' }]
-      : [{ key: '/my-jobs', icon: <FormOutlined />, label: 'Công việc của tôi', permission: 'myJobs' }]),
+      : [{
+          key: '/my-jobs',
+          icon: <FormOutlined />,
+          label: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span>Công việc của tôi</span>
+              <Badge count={myJobsCount} size="small" />
+            </span>
+          ),
+          permission: 'myJobs',
+        }]),
     { key: '/notifications', icon: <BellOutlined />, label: 'Thông báo', permission: 'notifications' },
     { key: '/users', icon: <UserOutlined />, label: 'Quản lý User', permission: 'users', adminOnly: true },
   ];
@@ -412,7 +446,7 @@ export default function Layout() {
           />
           {!collapsed && (
             <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 16, color: token.colorText }}>
-              Quản lý Thang máy
+              Quản lý dự án
             </span>
           )}
         </div>

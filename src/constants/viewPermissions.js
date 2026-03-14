@@ -1,15 +1,15 @@
 export const VIEW_PERMISSION_OPTIONS = [
   { value: 'dashboard', label: 'Dashboard' },
-  { value: 'customers', label: 'Khach hang' },
-  { value: 'contracts', label: 'Hop dong' },
-  { value: 'products', label: 'San pham' },
-  { value: 'elevators', label: 'Thang may' },
-  { value: 'errorReports', label: 'Bao loi' },
-  { value: 'maintenanceCalendar', label: 'Lich bao tri' },
-  { value: 'maintenanceOrders', label: 'Don bao tri' },
-  { value: 'myJobs', label: 'Cong viec cua toi' },
-  { value: 'notifications', label: 'Thong bao' },
-  { value: 'users', label: 'Quan ly User' },
+  { value: 'customers', label: 'Khách hàng' },
+  { value: 'contracts', label: 'Hợp đồng' },
+  { value: 'products', label: 'Sản phẩm' },
+  { value: 'elevators', label: 'Thang máy' },
+  { value: 'errorReports', label: 'Báo lỗi' },
+  { value: 'maintenanceCalendar', label: 'Lịch bảo trì' },
+  { value: 'maintenanceOrders', label: 'Đơn bảo trì' },
+  { value: 'myJobs', label: 'Công việc của tôi' },
+  { value: 'notifications', label: 'Thông báo' },
+  { value: 'users', label: 'Quản lý User' },
 ];
 
 export const VIEW_PERMISSION_KEYS = VIEW_PERMISSION_OPTIONS.map((option) => option.value);

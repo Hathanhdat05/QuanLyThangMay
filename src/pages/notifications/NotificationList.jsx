@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   BellOutlined,
   ToolOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import { api } from '../../lib/api';
 
@@ -14,10 +15,14 @@ const UPCOMING_NOTIFICATION_TITLE = 'Nhắc bảo trì định kỳ';
 
 const TYPE_CONFIG = {
   maintenance_schedule_upcoming: { color: 'blue', label: 'Nhắc lịch', icon: <ToolOutlined /> },
+  maintenance_order_assigned: { color: 'cyan', label: 'Phân công mới', icon: <FormOutlined /> },
+  maintenance_order_overdue: { color: 'volcano', label: 'Quá hạn', icon: <BellOutlined /> },
 };
 
 function getDisplayTitle(notification) {
   if (notification.type === 'maintenance_schedule_upcoming') return UPCOMING_NOTIFICATION_TITLE;
+  if (notification.type === 'maintenance_order_assigned') return 'Công việc bảo trì mới được giao';
+  if (notification.type === 'maintenance_order_overdue') return 'Nhắc việc quá hạn bảo trì';
   return notification.title;
 }
 
@@ -71,6 +76,26 @@ export default function NotificationList() {
     }
     if (n.type === 'maintenance_schedule_upcoming' && n.maintenance_schedule_id) {
       navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+      return;
+    }
+    if (n.type === 'maintenance_order_assigned') {
+      if (n.maintenance_schedule_id) {
+        navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+        return;
+      }
+      if (n.maintenance_order_id) {
+        navigate(`/maintenance-orders/${n.maintenance_order_id}/detail`);
+      }
+      return;
+    }
+    if (n.type === 'maintenance_order_overdue') {
+      if (n.maintenance_schedule_id) {
+        navigate(`/maintenance-orders/schedule/${n.maintenance_schedule_id}/detail`);
+        return;
+      }
+      if (n.maintenance_order_id) {
+        navigate(`/maintenance-orders/${n.maintenance_order_id}/detail`);
+      }
     }
   };
 

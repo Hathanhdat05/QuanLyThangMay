@@ -6,7 +6,7 @@ const schema = new mongoose.Schema(
     message: { type: String, default: '' },
     type: {
       type: String,
-      enum: ['maintenance_schedule_upcoming'],
+      enum: ['maintenance_schedule_upcoming', 'maintenance_order_assigned', 'maintenance_order_overdue'],
       required: true,
     },
     read: { type: Boolean, default: false },
@@ -14,6 +14,7 @@ const schema = new mongoose.Schema(
     elevator_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Elevator' },
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract' },
     maintenance_schedule_id: { type: mongoose.Schema.Types.ObjectId, ref: 'MaintenanceSchedule' },
+    maintenance_order_id: { type: mongoose.Schema.Types.ObjectId, ref: 'MaintenanceOrder' },
     reference_date: { type: Date },
   },
   { timestamps: true, toJSON: { virtuals: true } }

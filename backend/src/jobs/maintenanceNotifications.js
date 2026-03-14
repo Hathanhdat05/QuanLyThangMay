@@ -102,10 +102,52 @@ export async function runMaintenanceNotifications() {
       }
     }
 
+    const overdueOrders = await MaintenanceOrder.find({
+      scheduled_date: { $lt: todayDateOnly },
+      status: { $in: ['planned', 'in_progress'] },
+      assigned_user_ids: { $exists: true, $not: { $size: 0 } },
+    })
+      .select('_id maintenance_schedule_id assigned_user_ids scheduled_date title elevator_id contract_id')
+      .lean();
+
+    for (const order of overdueOrders) {
+      const recipientUserIds = Array.isArray(order.assigned_user_ids)
+        ? [...new Set(order.assigned_user_ids.map((id) => String(id)).filter(Boolean))]
+        : [];
+      if (recipientUserIds.length === 0) continue;
+
+      const referenceDate = parseDateOnlyToDate(todayDateOnly);
+      for (const recipientUserId of recipientUserIds) {
+        const exists = await Notification.findOne({
+          type: 'maintenance_order_overdue',
+          maintenance_schedule_id: order.maintenance_schedule_id,
+          user_id: recipientUserId,
+          reference_date: referenceDate,
+        });
+        if (exists) continue;
+
+        const orderDateText = order.scheduled_date || todayDateOnly;
+        const titleText = order.title ? ` (${order.title})` : '';
+        const doc = await Notification.create({
+          title: 'Nhắc việc quá hạn bảo trì',
+          message: `Đơn bảo trì ngày ${orderDateText}${titleText} vẫn chưa hoàn thành. Vui lòng cập nhật tiến độ xử lý.`,
+          type: 'maintenance_order_overdue',
+          user_id: recipientUserId,
+          maintenance_order_id: order._id,
+          maintenance_schedule_id: order.maintenance_schedule_id,
+          elevator_id: order.elevator_id,
+          contract_id: order.contract_id,
+          reference_date: referenceDate,
+        });
+        changedUserIds.add(String(recipientUserId));
+        io?.emit?.('notification:new', { ...doc.toJSON(), user_id: String(recipientUserId) });
+        await broadcastBrowserPush(doc, recipientUserId);
+      }
+    }
+
     if (changedUserIds.size > 0) {
       for (const userId of changedUserIds) {
         const unreadCount = await Notification.countDocuments({
-          type: 'maintenance_schedule_upcoming',
           user_id: userId,
           read: false,
         });

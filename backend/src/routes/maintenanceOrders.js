@@ -2,10 +2,15 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
+import { Elevator } from '../models/Elevator.js';
+import { Notification } from '../models/Notification.js';
+import { PushSubscription } from '../models/PushSubscription.js';
 import { User } from '../models/User.js';
 import { authMiddleware, requireAnyViewPermissions } from '../middleware/auth.js';
 import { syncScheduleToGoogleCalendar } from '../services/googleCalendarSync.js';
+import { sendWebPushNotification } from '../utils/webPush.js';
 import { parseDateOnlyToDate, toDateOnly } from '../utils/dateOnly.js';
+import { io } from '../index.js';
 
 const router = Router();
 
@@ -46,6 +51,45 @@ function toAssignedUserIds(rawValue) {
     .map((id) => String(id || '').trim())
     .filter((id) => mongoose.Types.ObjectId.isValid(id))
     .map((id) => new mongoose.Types.ObjectId(id));
+}
+
+function getNotificationTargetUrl(order) {
+  if (order?.maintenance_schedule_id) {
+    return `/maintenance-orders/schedule/${order.maintenance_schedule_id.toString()}/detail`;
+  }
+  if (order?._id) {
+    return `/maintenance-orders/${order._id.toString()}/detail`;
+  }
+  return '/my-jobs';
+}
+
+async function pushAssignmentNotification(doc, userId, order) {
+  const payload = {
+    title: doc.title || 'Thông báo mới',
+    body: doc.message || '',
+    icon: '/logo.png',
+    badge: '/logo.png',
+    url: getNotificationTargetUrl(order),
+  };
+  const subscriptions = await PushSubscription.find({ user_id: userId }).lean();
+  if (!subscriptions.length) return;
+  await Promise.all(
+    subscriptions.map(async (sub) => {
+      const result = await sendWebPushNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.keys?.p256dh,
+            auth: sub.keys?.auth,
+          },
+        },
+        payload
+      );
+      if (result?.expired) {
+        await PushSubscription.deleteOne({ _id: sub._id });
+      }
+    })
+  );
 }
 
 function toOrderResponse(order, currentUser) {
@@ -147,7 +191,7 @@ router.get('/', async (req, res) => {
   try {
     const currentUser = await getCurrentUser(req);
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
-    const { from, to, status, search, mine } = req.query;
+    const { from, to, status, search, mine, assigned_only, assignee_id } = req.query;
     const filter = {};
     if (from || to) {
       const fromDateOnly = toDateOnly(from);
@@ -160,6 +204,17 @@ router.get('/', async (req, res) => {
     if (status) filter.status = status;
     if (mine === '1' || currentUser.role !== 'admin') {
       filter.assigned_user_ids = new mongoose.Types.ObjectId(req.userId);
+    } else {
+      if (assigned_only === '1' || assigned_only === 'true') {
+        filter.assigned_user_ids = { $exists: true, $ne: [] };
+      }
+      if (assignee_id) {
+        const assigneeIdStr = String(assignee_id).trim();
+        if (!mongoose.Types.ObjectId.isValid(assigneeIdStr)) {
+          return res.status(400).json({ error: 'Invalid assignee_id' });
+        }
+        filter.assigned_user_ids = new mongoose.Types.ObjectId(assigneeIdStr);
+      }
     }
 
     let list = [];
@@ -269,6 +324,8 @@ router.put('/:id', async (req, res) => {
     }
 
     const body = req.body || {};
+    let newlyAssignedUserIds = [];
+    let shouldSyncScheduleDate = false;
     if (body.work_content !== undefined) doc.work_content = String(body.work_content ?? '');
     const statusWhitelist = currentUser.role === 'admin' ? ADMIN_EDITABLE_STATUSES : USER_EDITABLE_STATUSES;
     if (body.status !== undefined && statusWhitelist.includes(body.status)) {
@@ -279,10 +336,14 @@ router.put('/:id', async (req, res) => {
       if (!nextDateOnly) {
         return res.status(400).json({ error: 'Invalid scheduled_date' });
       }
+      shouldSyncScheduleDate = doc.scheduled_date !== nextDateOnly;
       doc.scheduled_date = nextDateOnly;
     }
     if (currentUser.role === 'admin' && body.assigned_user_ids !== undefined) {
+      const previousAssignedUserIds = (doc.assigned_user_ids || []).map((id) => String(id));
       doc.assigned_user_ids = toAssignedUserIds(body.assigned_user_ids);
+      const nextAssignedUserIds = (doc.assigned_user_ids || []).map((id) => String(id));
+      newlyAssignedUserIds = nextAssignedUserIds.filter((id) => !previousAssignedUserIds.includes(id));
     }
     if (Array.isArray(body.items)) {
       doc.items = body.items
@@ -296,14 +357,70 @@ router.put('/:id', async (req, res) => {
 
     await doc.save();
 
+    if (newlyAssignedUserIds.length > 0) {
+      const [scheduleDoc, elevatorDoc] = await Promise.all([
+        doc.maintenance_schedule_id
+          ? MaintenanceSchedule.findById(doc.maintenance_schedule_id).select('title').lean()
+          : null,
+        doc.elevator_id ? Elevator.findById(doc.elevator_id).select('type name').lean() : null,
+      ]);
+      const scheduleTitle = scheduleDoc?.title || doc.title || 'Lịch bảo trì định kỳ';
+      const elevatorName = elevatorDoc?.name?.trim?.() || '';
+      const messageTarget = `Lịch: "${scheduleTitle}"${elevatorName ? ` | Tên thang máy: ${elevatorName}` : ''} | Ngày hẹn: ${doc.scheduled_date}.`;
+      for (const assignedUserId of newlyAssignedUserIds) {
+        try {
+          const notificationDoc = await Notification.create({
+            title: 'Công việc bảo trì mới được giao',
+            message: messageTarget,
+            type: 'maintenance_order_assigned',
+            user_id: assignedUserId,
+            maintenance_order_id: doc._id,
+            maintenance_schedule_id: doc.maintenance_schedule_id,
+            elevator_id: doc.elevator_id,
+            contract_id: doc.contract_id,
+            reference_date: new Date(),
+          });
+          io?.emit?.('notification:new', { ...notificationDoc.toJSON(), user_id: String(assignedUserId) });
+          const unreadCount = await Notification.countDocuments({
+            user_id: assignedUserId,
+            read: false,
+          });
+          io?.emit?.('notification:unread-count', { user_id: String(assignedUserId), count: unreadCount });
+          await pushAssignmentNotification(notificationDoc, assignedUserId, doc);
+        } catch (notifyErr) {
+          console.error(
+            '[maintenanceOrders] assignment notification failed:',
+            `order=${doc._id?.toString?.() || ''}`,
+            `user=${assignedUserId}`,
+            notifyErr?.message || notifyErr
+          );
+        }
+      }
+    }
+
     if (doc.maintenance_schedule_id) {
       const scheduleStatus =
         doc.status === 'cancelled' ? 'cancelled' : doc.status === 'completed' ? 'completed' : 'planned';
-      const schedule = await MaintenanceSchedule.findByIdAndUpdate(
-        doc.maintenance_schedule_id,
-        { status: scheduleStatus, scheduled_date: doc.scheduled_date },
-        { new: true }
-      ).lean();
+      const scheduleUpdateData = { status: scheduleStatus };
+      if (shouldSyncScheduleDate) {
+        scheduleUpdateData.scheduled_date = doc.scheduled_date;
+      }
+      let schedule;
+      try {
+        schedule = await MaintenanceSchedule.findByIdAndUpdate(
+          doc.maintenance_schedule_id,
+          scheduleUpdateData,
+          { new: true }
+        ).lean();
+      } catch (scheduleErr) {
+        if (scheduleErr?.code === 11000) {
+          return res.status(409).json({
+            error: 'Ngày bảo trì bị trùng',
+            message: 'Đã tồn tại lịch bảo trì khác cùng hợp đồng, thang máy và ngày bảo trì này.',
+          });
+        }
+        throw scheduleErr;
+      }
       if (schedule) {
         syncScheduleToGoogleCalendar(schedule).catch((err) =>
           console.error('Google Calendar sync schedule status error:', err?.message || err)
@@ -329,6 +446,7 @@ router.put('/:id', async (req, res) => {
     delete out._id;
     return res.json(out);
   } catch (err) {
+    console.error('[maintenanceOrders] update error:', err?.message || err);
     return res.status(500).json({ error: 'Server error' });
   }
 });

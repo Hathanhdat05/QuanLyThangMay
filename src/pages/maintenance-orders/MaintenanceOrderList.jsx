@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Typography, message, Tag, Input } from 'antd';
+import { Table, Button, Space, Typography, message, Tag, Input, Select } from 'antd';
 import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../lib/api';
@@ -35,6 +35,9 @@ export default function MaintenanceOrderList({ mineOnly = false }) {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState(null);
   const [search, setSearch] = useState('');
+  const [assignedOnly, setAssignedOnly] = useState(false);
+  const [assigneeId, setAssigneeId] = useState(undefined);
+  const [assigneeOptions, setAssigneeOptions] = useState([]);
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
@@ -44,6 +47,8 @@ export default function MaintenanceOrderList({ mineOnly = false }) {
     if (mineOnly) params.set('mine', '1');
     if (statusFilter) params.set('status', statusFilter);
     if (search) params.set('search', search);
+    if (!mineOnly && isAdmin && assignedOnly) params.set('assigned_only', '1');
+    if (!mineOnly && isAdmin && assigneeId) params.set('assignee_id', assigneeId);
     const path = params.toString() ? `/maintenance-orders?${params}` : '/maintenance-orders';
     const { data, error } = await api.get(path);
     if (error) {
@@ -56,7 +61,21 @@ export default function MaintenanceOrderList({ mineOnly = false }) {
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter, search]);
+  }, [statusFilter, search, assignedOnly, assigneeId, mineOnly, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || mineOnly) return;
+    api.get('/users').then(({ data, error }) => {
+      if (error) return;
+      const users = Array.isArray(data) ? data.filter((u) => u.role === 'user') : [];
+      setAssigneeOptions(
+        users.map((u) => ({
+          value: u.id,
+          label: `${u.full_name || '(Chưa có tên)'} - ${u.email}`,
+        }))
+      );
+    });
+  }, [isAdmin, mineOnly]);
 
   const columns = [
     {
@@ -184,6 +203,23 @@ export default function MaintenanceOrderList({ mineOnly = false }) {
             );
           })}
         </Space.Compact>
+        {!mineOnly && isAdmin && (
+          <>
+            <Button type={assignedOnly ? 'primary' : 'default'} onClick={() => setAssignedOnly((prev) => !prev)}>
+              Việc đã giao
+            </Button>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Lọc theo user được giao"
+              style={{ width: 320 }}
+              value={assigneeId}
+              onChange={setAssigneeId}
+              options={assigneeOptions}
+            />
+          </>
+        )}
       </Space>
 
       <Table
