@@ -5,6 +5,8 @@ import { Product } from '../models/Product.js';
 import { Elevator } from '../models/Elevator.js';
 import { ErrorReport } from '../models/ErrorReport.js';
 import { MaintenanceSchedule } from '../models/MaintenanceSchedule.js';
+import { MaintenanceOrder } from '../models/MaintenanceOrder.js';
+import { User } from '../models/User.js';
 import { authMiddleware, requireViewPermission } from '../middleware/auth.js';
 import { toDateOnly } from '../utils/dateOnly.js';
 
@@ -30,6 +32,32 @@ function getCurrentWeekRangeDateOnly(baseDate = new Date()) {
 router.get('/', async (req, res) => {
   try {
     const { startDateOnly, endDateOnly } = getCurrentWeekRangeDateOnly(new Date());
+    const currentUser = await User.findById(req.userId).select('role').lean();
+    if (!currentUser) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'User not found' });
+    }
+
+    let allowedScheduleIds = null;
+    if (currentUser.role !== 'admin') {
+      const assignedOrders = await MaintenanceOrder.find({
+        assigned_user_ids: req.userId,
+        scheduled_date: { $gte: startDateOnly, $lte: endDateOnly },
+        status: { $ne: 'cancelled' },
+      })
+        .select('maintenance_schedule_id')
+        .lean();
+      allowedScheduleIds = assignedOrders
+        .map((o) => o.maintenance_schedule_id)
+        .filter(Boolean);
+    }
+
+    const scheduleFilter = {
+      scheduled_date: { $gte: startDateOnly, $lte: endDateOnly },
+      status: { $ne: 'cancelled' },
+    };
+    if (Array.isArray(allowedScheduleIds)) {
+      scheduleFilter._id = { $in: allowedScheduleIds };
+    }
 
     const [customersCount, contractsCount, productsCount, elevatorsCount, recentReports, upcomingSchedules] =
       await Promise.all([
@@ -43,10 +71,7 @@ router.get('/', async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(10)
           .lean(),
-        MaintenanceSchedule.find({
-          scheduled_date: { $gte: startDateOnly, $lte: endDateOnly },
-          status: { $ne: 'cancelled' },
-        })
+        MaintenanceSchedule.find(scheduleFilter)
           .sort({ scheduled_date: 1 })
           .lean(),
       ]);

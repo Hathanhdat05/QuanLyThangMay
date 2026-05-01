@@ -1,0 +1,45 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: thangmay3-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: thangmay3-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/thangmay3
+      JWT_SECRET: change_this_jwt_secret_in_production
+      CORS_ORIGIN: http://localhost
+      RUN_PAST_MAINTENANCE_MIGRATION_ON_STARTUP: "true"
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: thangmay3-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mongo_data:
+  backend_uploads:

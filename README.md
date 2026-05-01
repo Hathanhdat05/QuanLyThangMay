@@ -2,6 +2,42 @@
 
 Website quản lý lắp đặt, bảo trì thang máy với React + Node.js + MongoDB.
 
+## Đóng gói chạy nhanh bằng Docker (khuyên dùng)
+
+Yêu cầu: cài [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+# 1) Build + chạy toàn bộ hệ thống
+docker compose up -d --build
+
+# 2) Xem log (nếu cần)
+docker compose logs -f
+```
+
+Truy cập:
+
+- Frontend: `http://localhost`
+- Backend health check: `http://localhost:3001/api/health`
+
+Tạo admin mặc định (chạy một lần):
+
+```bash
+docker compose exec backend node scripts/seed-admin.js
+# Đăng nhập: admin@example.com / admin123
+```
+
+Dừng hệ thống:
+
+```bash
+docker compose down
+```
+
+Xóa cả dữ liệu database + uploads (reset sạch):
+
+```bash
+docker compose down -v
+```
+
 ## Chức năng
 
 - **Khách hàng**: Thêm, sửa, xóa, tìm kiếm khách hàng
