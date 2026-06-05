@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="vi-VN" xml:lang="vi-VN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Đội triển khai hệ thống" />
+  <title>TÀI LIỆU HƯỚNG DẪN SỬ DỤNG HỆ THỐNG QUẢN LÝ THANG MÁY</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="handover-style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">TÀI LIỆU HƯỚNG DẪN SỬ DỤNG HỆ THỐNG QUẢN LÝ THANG
+MÁY</h1>
+<p class="subtitle">Bản chuẩn bàn giao khách hàng</p>
+<p class="author">Đội triển khai hệ thống</p>
+<p class="date">Tháng 03/2026</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#mục-đích-tài-liệu" id="toc-mục-đích-tài-liệu"><span
+class="toc-section-number">1</span> 1. Mục đích tài liệu</a></li>
+<li><a href="#đối-tượng-sử-dụng" id="toc-đối-tượng-sử-dụng"><span
+class="toc-section-number">2</span> 2. Đối tượng sử dụng</a></li>
+<li><a href="#tổng-quan-hệ-thống" id="toc-tổng-quan-hệ-thống"><span
+class="toc-section-number">3</span> 3. Tổng quan hệ thống</a>
+<ul>
+<li><a href="#luồng-sử-dụng-chính" id="toc-luồng-sử-dụng-chính"><span
+class="toc-section-number">3.1</span> 3.1 Luồng sử dụng chính</a></li>
+<li><a href="#giao-diện-tổng-thể" id="toc-giao-diện-tổng-thể"><span
+class="toc-section-number">3.2</span> 3.2 Giao diện tổng thể</a></li>
+</ul></li>
+<li><a href="#đăng-nhập-và-bảo-mật-tài-khoản"
+id="toc-đăng-nhập-và-bảo-mật-tài-khoản"><span
+class="toc-section-number">4</span> 4. Đăng nhập và bảo mật tài
+khoản</a>
+<ul>
+<li><a href="#các-bước-đăng-nhập" id="toc-các-bước-đăng-nhập"><span
+class="toc-section-number">4.1</span> 4.1 Các bước đăng nhập</a></li>
+<li><a href="#khuyến-nghị-bảo-mật" id="toc-khuyến-nghị-bảo-mật"><span
+class="toc-section-number">4.2</span> 4.2 Khuyến nghị bảo mật</a></li>
+</ul></li>
+<li><a href="#phân-quyền-người-dùng"
+id="toc-phân-quyền-người-dùng"><span class="toc-section-number">5</span>
+5. Phân quyền người dùng</a>
+<ul>
+<li><a href="#quyền-admin" id="toc-quyền-admin"><span
+class="toc-section-number">5.1</span> 5.1 Quyền Admin</a></li>
+<li><a href="#quyền-user" id="toc-quyền-user"><span
+class="toc-section-number">5.2</span> 5.2 Quyền User</a></li>
+</ul></li>
+<li><a href="#hướng-dẫn-chi-tiết-theo-phân-hệ"
+id="toc-hướng-dẫn-chi-tiết-theo-phân-hệ"><span
+class="toc-section-number">6</span> 6. Hướng dẫn chi tiết theo phân
+hệ</a>
+<ul>
+<li><a href="#dashboard" id="toc-dashboard"><span
+class="toc-section-number">6.1</span> 6.1 Dashboard</a></li>
+<li><a href="#quản-lý-khách-hàng" id="toc-quản-lý-khách-hàng"><span
+class="toc-section-number">6.2</span> 6.2 Quản lý khách hàng</a>
+<ul>
+<li><a href="#màn-hình-danh-sách-khách-hàng"
+id="toc-màn-hình-danh-sách-khách-hàng"><span
+class="toc-section-number">6.2.1</span> 6.2.1 Màn hình danh sách khách
+hàng</a></li>
+<li><a href="#màn-hình-thêm-khách-hàng"
+id="toc-màn-hình-thêm-khách-hàng"><span
+class="toc-section-number">6.2.2</span> 6.2.2 Màn hình thêm khách
+hàng</a></li>
+<li><a href="#màn-hình-chi-tiết-khách-hàng"
+id="toc-màn-hình-chi-tiết-khách-hàng"><span
+class="toc-section-number">6.2.3</span> 6.2.3 Màn hình chi tiết khách
+hàng</a></li>
+</ul></li>
+<li><a href="#quản-lý-hợp-đồng" id="toc-quản-lý-hợp-đồng"><span
+class="toc-section-number">6.3</span> 6.3 Quản lý hợp đồng</a>
+<ul>
+<li><a href="#màn-hình-danh-sách-hợp-đồng"
+id="toc-màn-hình-danh-sách-hợp-đồng"><span
+class="toc-section-number">6.3.1</span> 6.3.1 Màn hình danh sách hợp
+đồng</a></li>
+<li><a href="#màn-hình-chi-tiết-hợp-đồng"
+id="toc-màn-hình-chi-tiết-hợp-đồng"><span
+class="toc-section-number">6.3.2</span> 6.3.2 Màn hình chi tiết hợp
+đồng</a></li>
+</ul></li>
+<li><a href="#quản-lý-thang-máy" id="toc-quản-lý-thang-máy"><span
+class="toc-section-number">6.4</span> 6.4 Quản lý thang máy</a>
+<ul>
+<li><a href="#màn-hình-thêm-thang-máy"
+id="toc-màn-hình-thêm-thang-máy"><span
+class="toc-section-number">6.4.1</span> 6.4.1 Màn hình thêm thang
+máy</a></li>
+</ul></li>
+<li><a href="#quản-lý-báo-lỗi" id="toc-quản-lý-báo-lỗi"><span
+class="toc-section-number">6.5</span> 6.5 Quản lý báo lỗi</a></li>
+<li><a href="#lịch-bảo-trì" id="toc-lịch-bảo-trì"><span
+class="toc-section-number">6.6</span> 6.6 Lịch bảo trì</a></li>
+<li><a href="#đơn-bảo-trì-admin-công-việc-của-tôi-user"
+id="toc-đơn-bảo-trì-admin-công-việc-của-tôi-user"><span
+class="toc-section-number">6.7</span> 6.7 Đơn bảo trì (Admin) / Công
+việc của tôi (User)</a>
+<ul>
+<li><a href="#màn-hình-danh-sách-đơn-bảo-trì"
+id="toc-màn-hình-danh-sách-đơn-bảo-trì"><span
+class="toc-section-number">6.7.1</span> 6.7.1 Màn hình danh sách đơn bảo
+trì</a></li>
+<li><a href="#màn-hình-chi-tiết-đơn-bảo-trì"
+id="toc-màn-hình-chi-tiết-đơn-bảo-trì"><span
+class="toc-section-number">6.7.2</span> 6.7.2 Màn hình chi tiết đơn bảo
+trì</a></li>
+</ul></li>
+<li><a href="#thông-báo" id="toc-thông-báo"><span
+class="toc-section-number">6.8</span> 6.8 Thông báo</a></li>
+<li><a href="#quản-lý-user-chỉ-dành-cho-admin"
+id="toc-quản-lý-user-chỉ-dành-cho-admin"><span
+class="toc-section-number">6.9</span> 6.9 Quản lý User (chỉ dành cho
+Admin)</a></li>
+</ul></li>
+<li><a href="#quy-trình-vận-hành-đề-xuất"
+id="toc-quy-trình-vận-hành-đề-xuất"><span
+class="toc-section-number">7</span> 7. Quy trình vận hành đề xuất</a>
+<ul>
+<li><a href="#quy-trình-tiếp-nhận-và-xử-lý-sự-cố"
+id="toc-quy-trình-tiếp-nhận-và-xử-lý-sự-cố"><span
+class="toc-section-number">7.1</span> 7.1 Quy trình tiếp nhận và xử lý
+sự cố</a></li>
+<li><a href="#quy-trình-kiểm-soát-định-kỳ"
+id="toc-quy-trình-kiểm-soát-định-kỳ"><span
+class="toc-section-number">7.2</span> 7.2 Quy trình kiểm soát định
+kỳ</a></li>
+</ul></li>
+<li><a href="#câu-hỏi-thường-gặp-faq"
+id="toc-câu-hỏi-thường-gặp-faq"><span
+class="toc-section-number">8</span> 8. Câu hỏi thường gặp (FAQ)</a>
+<ul>
+<li><a href="#không-thấy-nút-thêmsửaxóa"
+id="toc-không-thấy-nút-thêmsửaxóa"><span
+class="toc-section-number">8.1</span> 8.1 Không thấy nút
+Thêm/Sửa/Xóa?</a></li>
+<li><a href="#vì-sao-không-thấy-mục-công-việc-của-tôi"
+id="toc-vì-sao-không-thấy-mục-công-việc-của-tôi"><span
+class="toc-section-number">8.2</span> 8.2 Vì sao không thấy mục “Công
+việc của tôi”?</a></li>
+<li><a href="#đã-tạo-báo-lỗi-nhưng-không-thấy-trên-lịch"
+id="toc-đã-tạo-báo-lỗi-nhưng-không-thấy-trên-lịch"><span
+class="toc-section-number">8.3</span> 8.3 Đã tạo báo lỗi nhưng không
+thấy trên lịch?</a></li>
+<li><a href="#cách-đồng-bộ-lịch-sang-google-calendar"
+id="toc-cách-đồng-bộ-lịch-sang-google-calendar"><span
+class="toc-section-number">8.4</span> 8.4 Cách đồng bộ lịch sang Google
+Calendar?</a></li>
+</ul></li>
+<li><a href="#đầu-mối-hỗ-trợ" id="toc-đầu-mối-hỗ-trợ"><span
+class="toc-section-number">9</span> 9. Đầu mối hỗ trợ</a></li>
+</ul>
+</nav>
+<h1 data-number="1" id="mục-đích-tài-liệu"><span
+class="header-section-number">1</span> 1. Mục đích tài liệu</h1>
+<p>Tài liệu này được biên soạn để bàn giao cho khách hàng, giúp người
+dùng cuối nắm rõ cách sử dụng hệ thống quản lý thang máy trong vận hành
+hằng ngày.</p>
+<p>Nội dung tập trung vào:</p>
+<ul>
+<li>Quy trình thao tác thực tế theo từng phân hệ.</li>
+<li>Cách phối hợp giữa các vai trò (Admin/User).</li>
+<li>Các tình huống thường gặp và cách xử lý.</li>
+<li>Hình ảnh minh họa trực quan để dễ áp dụng.</li>
+</ul>
+<h1 data-number="2" id="đối-tượng-sử-dụng"><span
+class="header-section-number">2</span> 2. Đối tượng sử dụng</h1>
+<ul>
+<li><strong>Quản trị viên (Admin):</strong> quản lý dữ liệu, người dùng,
+phân công công việc, giám sát tiến độ.</li>
+<li><strong>Nhân viên/Kỹ thuật viên (User):</strong> tiếp nhận và xử lý
+các công việc được phân công, cập nhật trạng thái.</li>
+<li><strong>Bộ phận vận hành:</strong> theo dõi báo lỗi, lịch bảo trì,
+tiến độ xử lý.</li>
+</ul>
+<h1 data-number="3" id="tổng-quan-hệ-thống"><span
+class="header-section-number">3</span> 3. Tổng quan hệ thống</h1>
+<h2 data-number="3.1" id="luồng-sử-dụng-chính"><span
+class="header-section-number">3.1</span> 3.1 Luồng sử dụng chính</h2>
+<ol type="1">
+<li>Đăng nhập hệ thống.</li>
+<li>Theo dõi nhanh trên Dashboard.</li>
+<li>Quản lý thông tin khách hàng/hợp đồng/thang máy.</li>
+<li>Ghi nhận báo lỗi và theo dõi lịch bảo trì.</li>
+<li>Theo dõi đơn bảo trì, xử lý công việc theo phân công.</li>
+<li>Nhận thông báo và phản hồi kịp thời.</li>
+</ol>
+<h2 data-number="3.2" id="giao-diện-tổng-thể"><span
+class="header-section-number">3.2</span> 3.2 Giao diện tổng thể</h2>
+<p>Hệ thống gồm ba khu vực:</p>
+<ul>
+<li><strong>Menu bên trái:</strong> chuyển phân hệ.</li>
+<li><strong>Thanh trên cùng:</strong> thông báo, thông tin tài khoản,
+đăng xuất.</li>
+<li><strong>Khu vực nội dung:</strong> danh sách, biểu mẫu, báo cáo tổng
+quan.</li>
+</ul>
+<figure>
+<img src="./screenshots/dashboard.png" alt="Dashboard tổng quan" />
+<figcaption aria-hidden="true">Dashboard tổng quan</figcaption>
+</figure>
+<h1 data-number="4" id="đăng-nhập-và-bảo-mật-tài-khoản"><span
+class="header-section-number">4</span> 4. Đăng nhập và bảo mật tài
+khoản</h1>
+<h2 data-number="4.1" id="các-bước-đăng-nhập"><span
+class="header-section-number">4.1</span> 4.1 Các bước đăng nhập</h2>
+<ol type="1">
+<li>Mở đường dẫn hệ thống được bàn giao.</li>
+<li>Nhập email và mật khẩu.</li>
+<li>Nhấn <strong>Đăng nhập</strong>.</li>
+</ol>
+<figure>
+<img src="./screenshots/login.png" alt="Màn hình đăng nhập" />
+<figcaption aria-hidden="true">Màn hình đăng nhập</figcaption>
+</figure>
+<h2 data-number="4.2" id="khuyến-nghị-bảo-mật"><span
+class="header-section-number">4.2</span> 4.2 Khuyến nghị bảo mật</h2>
+<ul>
+<li>Không chia sẻ tài khoản cho người không liên quan.</li>
+<li>Đăng xuất sau khi hoàn thành công việc.</li>
+<li>Đổi mật khẩu định kỳ theo quy định nội bộ.</li>
+<li>Báo ngay cho quản trị viên khi phát hiện đăng nhập bất thường.</li>
+</ul>
+<h1 data-number="5" id="phân-quyền-người-dùng"><span
+class="header-section-number">5</span> 5. Phân quyền người dùng</h1>
+<h2 data-number="5.1" id="quyền-admin"><span
+class="header-section-number">5.1</span> 5.1 Quyền Admin</h2>
+<ul>
+<li>Toàn quyền xem/thêm/sửa/xóa dữ liệu các phân hệ.</li>
+<li>Quản lý tài khoản người dùng.</li>
+<li>Phân công đơn bảo trì cho kỹ thuật viên.</li>
+<li>Theo dõi toàn bộ thông báo và tiến độ xử lý.</li>
+</ul>
+<h2 data-number="5.2" id="quyền-user"><span
+class="header-section-number">5.2</span> 5.2 Quyền User</h2>
+<ul>
+<li>Xem các module được cấp quyền.</li>
+<li>Tạo/cập nhật báo lỗi theo phạm vi được phép.</li>
+<li>Theo dõi <strong>Công việc của tôi</strong> khi đã được giao
+việc.</li>
+</ul>
+<h1 data-number="6" id="hướng-dẫn-chi-tiết-theo-phân-hệ"><span
+class="header-section-number">6</span> 6. Hướng dẫn chi tiết theo phân
+hệ</h1>
+<h2 data-number="6.1" id="dashboard"><span
+class="header-section-number">6.1</span> 6.1 Dashboard</h2>
+<p><strong>Mục đích:</strong> theo dõi nhanh tình trạng vận hành hệ
+thống.</p>
+<p><strong>Thông tin chính trên màn hình:</strong></p>
+<ul>
+<li>Số lượng khách hàng, hợp đồng, sản phẩm, thang máy.</li>
+<li>Số báo lỗi đang chờ xử lý.</li>
+<li>Lịch bảo trì sắp tới trong tuần.</li>
+</ul>
+<p><strong>Thao tác:</strong></p>
+<ul>
+<li>Nhấn vào thẻ thống kê để mở danh sách chi tiết.</li>
+<li>Chọn dòng báo lỗi để xem thông tin xử lý.</li>
+<li>Chọn lịch bảo trì để đi đến đơn bảo trì liên quan.</li>
+</ul>
+<figure>
+<img src="./screenshots/dashboard.png" alt="Dashboard chi tiết" />
+<figcaption aria-hidden="true">Dashboard chi tiết</figcaption>
+</figure>
+<h2 data-number="6.2" id="quản-lý-khách-hàng"><span
+class="header-section-number">6.2</span> 6.2 Quản lý khách hàng</h2>
+<h3 data-number="6.2.1" id="màn-hình-danh-sách-khách-hàng"><span
+class="header-section-number">6.2.1</span> 6.2.1 Màn hình danh sách
+khách hàng</h3>
+<ul>
+<li>Tìm kiếm theo mã khách hàng, tên, email, số điện thoại.</li>
+<li>Với Admin: thêm/sửa/xóa, xóa hàng loạt, xuất Excel.</li>
+<li>Nhấn tên khách hàng để mở trang chi tiết.</li>
+</ul>
+<figure>
+<img src="./screenshots/customers.png" alt="Danh sách khách hàng" />
+<figcaption aria-hidden="true">Danh sách khách hàng</figcaption>
+</figure>
+<h3 data-number="6.2.2" id="màn-hình-thêm-khách-hàng"><span
+class="header-section-number">6.2.2</span> 6.2.2 Màn hình thêm khách
+hàng</h3>
+<p>Đường dẫn thao tác: <strong>Khách hàng</strong> → <strong>Thêm khách
+hàng</strong>.</p>
+<p>Các trường quan trọng:</p>
+<ul>
+<li>ID khách hàng: hệ thống tự sinh.</li>
+<li>Loại khách hàng: cá nhân/doanh nghiệp.</li>
+<li>Tỉnh/Thành phố và Quận/Huyện (bắt buộc).</li>
+<li>Địa chỉ chi tiết, khu vực, ghi chú.</li>
+</ul>
+<p><strong>Logic nghiệp vụ áp dụng:</strong></p>
+<ul>
+<li>Khi chọn tỉnh/thành phố, danh sách quận/huyện sẽ đổi theo tỉnh đã
+chọn.</li>
+<li>Khi đổi tỉnh, trường quận/huyện được reset để tránh lưu sai dữ
+liệu.</li>
+<li>Form tạo mới sẽ gọi API cấp ID tự động trước khi lưu.</li>
+</ul>
+<figure>
+<img src="./screenshots/customer-add.png"
+alt="Màn hình thêm khách hàng" />
+<figcaption aria-hidden="true">Màn hình thêm khách hàng</figcaption>
+</figure>
+<h3 data-number="6.2.3" id="màn-hình-chi-tiết-khách-hàng"><span
+class="header-section-number">6.2.3</span> 6.2.3 Màn hình chi tiết khách
+hàng</h3>
+<p>Hiển thị:</p>
+<ul>
+<li>Thông tin hồ sơ khách hàng đầy đủ.</li>
+<li>Danh sách hợp đồng của khách hàng ngay bên dưới.</li>
+</ul>
+<p><strong>Logic nghiệp vụ áp dụng:</strong></p>
+<ul>
+<li>Mỗi hợp đồng trong bảng có thể mở trực tiếp sang <strong>Chi tiết
+hợp đồng</strong>.</li>
+<li>Đây là điểm bắt đầu để truy vết từ khách hàng → hợp đồng → lịch bảo
+trì/đơn bảo trì.</li>
+</ul>
+<figure>
+<img src="./screenshots/customer-detail.png"
+alt="Màn hình chi tiết khách hàng" />
+<figcaption aria-hidden="true">Màn hình chi tiết khách hàng</figcaption>
+</figure>
+<h2 data-number="6.3" id="quản-lý-hợp-đồng"><span
+class="header-section-number">6.3</span> 6.3 Quản lý hợp đồng</h2>
+<h3 data-number="6.3.1" id="màn-hình-danh-sách-hợp-đồng"><span
+class="header-section-number">6.3.1</span> 6.3.1 Màn hình danh sách hợp
+đồng</h3>
+<ul>
+<li>Tìm theo số hợp đồng.</li>
+<li>Lọc theo trạng thái, loại hợp đồng, bảo hành, ngày tạo.</li>
+<li>Cập nhật nhanh trạng thái hợp đồng.</li>
+<li>Với Admin: thêm/sửa/xóa và xuất Excel.</li>
+</ul>
+<figure>
+<img src="./screenshots/contracts.png" alt="Danh sách hợp đồng" />
+<figcaption aria-hidden="true">Danh sách hợp đồng</figcaption>
+</figure>
+<h3 data-number="6.3.2" id="màn-hình-chi-tiết-hợp-đồng"><span
+class="header-section-number">6.3.2</span> 6.3.2 Màn hình chi tiết hợp
+đồng</h3>
+<p>Hiển thị:</p>
+<ul>
+<li>Thông tin hợp đồng (loại, trạng thái, thời gian, tần suất bảo
+trì).</li>
+<li>Thông tin khách hàng liên kết.</li>
+<li>Danh sách sản phẩm/thang máy trong hợp đồng.</li>
+<li>Lịch sử bảo trì gồm:
+<ul>
+<li>Lịch bảo trì định kỳ</li>
+<li>Báo lỗi/bảo dưỡng phát sinh</li>
+</ul></li>
+</ul>
+<p><strong>Logic nghiệp vụ áp dụng ngay trong module hợp
+đồng:</strong></p>
+<ul>
+<li>Hệ thống chỉ tự sinh lịch bảo trì định kỳ khi hợp đồng:
+<ul>
+<li>Loại <code>installation</code></li>
+<li>Trạng thái <code>completed</code></li>
+<li>Có đủ ngày bắt đầu, ngày kết thúc, tần suất</li>
+<li>Có item thang máy</li>
+</ul></li>
+<li>Công thức sinh lịch:
+<ul>
+<li>Mốc đầu =
+<code>start_date + maintenance_frequency_per_month</code></li>
+<li>Lặp theo chu kỳ tháng đến trước/đúng <code>end_date</code></li>
+</ul></li>
+<li>Chống trùng lịch theo bộ khóa:
+<ul>
+<li><code>contract_id + elevator_id + scheduled_date</code></li>
+</ul></li>
+<li>Mỗi lịch định kỳ tương ứng đúng 1 đơn bảo trì.</li>
+</ul>
+<figure>
+<img src="./screenshots/contract-detail.png"
+alt="Màn hình chi tiết hợp đồng" />
+<figcaption aria-hidden="true">Màn hình chi tiết hợp đồng</figcaption>
+</figure>
+<h2 data-number="6.4" id="quản-lý-thang-máy"><span
+class="header-section-number">6.4</span> 6.4 Quản lý thang máy</h2>
+<h3 data-number="6.4.1" id="màn-hình-thêm-thang-máy"><span
+class="header-section-number">6.4.1</span> 6.4.1 Màn hình thêm thang
+máy</h3>
+<p>Đường dẫn thao tác: <strong>Thang máy</strong> → <strong>Thêm thang
+máy</strong>.</p>
+<p>Các trường chính:</p>
+<ul>
+<li>ID thang máy: hệ thống tự sinh.</li>
+<li>Tên thang máy, loại, thương hiệu, model.</li>
+<li>Ảnh thang máy (upload).</li>
+<li>Tải trọng, tốc độ, mô tả.</li>
+</ul>
+<p><strong>Logic nghiệp vụ áp dụng:</strong></p>
+<ul>
+<li>Chỉ chấp nhận file ảnh khi upload.</li>
+<li>Dung lượng ảnh tối đa 5MB.</li>
+<li>Khi tạo mới, tải trọng và tốc độ có mặc định 0 để tránh dữ liệu
+rỗng.</li>
+</ul>
+<figure>
+<img src="./screenshots/elevator-add.png"
+alt="Màn hình thêm thang máy" />
+<figcaption aria-hidden="true">Màn hình thêm thang máy</figcaption>
+</figure>
+<h2 data-number="6.5" id="quản-lý-báo-lỗi"><span
+class="header-section-number">6.5</span> 6.5 Quản lý báo lỗi</h2>
+<p><strong>Mục đích:</strong> ghi nhận sự cố và điều phối xử lý.</p>
+<p><strong>Thao tác thường dùng:</strong></p>
+<ul>
+<li>Tạo báo lỗi mới.</li>
+<li>Lọc theo trạng thái và tìm kiếm theo tiêu đề.</li>
+<li>Theo dõi mức độ ưu tiên: thấp/trung bình/cao/nghiêm trọng.</li>
+<li>Với Admin: cập nhật trạng thái và xóa dữ liệu.</li>
+</ul>
+<p><strong>Trạng thái xử lý báo lỗi:</strong></p>
+<ul>
+<li>Chờ xử lý</li>
+<li>Đang xử lý</li>
+<li>Đã xử lý</li>
+<li>Đã đóng</li>
+</ul>
+<figure>
+<img src="./screenshots/error-reports.png" alt="Danh sách báo lỗi" />
+<figcaption aria-hidden="true">Danh sách báo lỗi</figcaption>
+</figure>
+<h2 data-number="6.6" id="lịch-bảo-trì"><span
+class="header-section-number">6.6</span> 6.6 Lịch bảo trì</h2>
+<p><strong>Mục đích:</strong> theo dõi lịch công việc theo
+ngày/tuần/tháng và đồng bộ lịch dùng chung.</p>
+<p><strong>Thao tác thường dùng:</strong></p>
+<ul>
+<li>Chuyển chế độ xem: tháng/tuần/ngày/lịch trình.</li>
+<li>Lọc loại sự kiện (bảo trì định kỳ hoặc báo lỗi).</li>
+<li>Mở popup chi tiết sự kiện.</li>
+<li>Sao chép link chia sẻ để đưa lịch vào Google Calendar.</li>
+<li>Với Admin: dùng nút <strong>Resync ngay</strong> để đồng bộ lại dữ
+liệu lịch.</li>
+</ul>
+<figure>
+<img src="./screenshots/maintenance-calendar.png" alt="Lịch bảo trì" />
+<figcaption aria-hidden="true">Lịch bảo trì</figcaption>
+</figure>
+<p><strong>Logic nghiệp vụ áp dụng trong màn hình lịch:</strong></p>
+<ul>
+<li>Admin nhìn thấy toàn bộ lịch định kỳ.</li>
+<li>User chỉ nhìn thấy lịch định kỳ có liên kết với đơn bảo trì mà user
+đang được gán.</li>
+<li>Nếu click vào sự kiện định kỳ, hệ thống mở chi tiết đơn theo
+<code>scheduleId</code>; nếu chưa có đơn (dữ liệu cũ) thì backend tự tạo
+đơn bù.</li>
+</ul>
+<h2 data-number="6.7"
+id="đơn-bảo-trì-admin-công-việc-của-tôi-user"><span
+class="header-section-number">6.7</span> 6.7 Đơn bảo trì (Admin) / Công
+việc của tôi (User)</h2>
+<h3 data-number="6.7.1" id="màn-hình-danh-sách-đơn-bảo-trì"><span
+class="header-section-number">6.7.1</span> 6.7.1 Màn hình danh sách đơn
+bảo trì</h3>
+<ul>
+<li>Tìm theo khách hàng/hợp đồng/thang máy.</li>
+<li>Lọc theo trạng thái: dự kiến, đang thực hiện, đã hoàn thành, đã
+hủy.</li>
+<li>Với Admin: lọc theo người được giao, theo dõi việc đã giao.</li>
+<li>Mở <strong>Chi tiết</strong> để cập nhật tiến độ công việc.</li>
+</ul>
+<figure>
+<img src="./screenshots/maintenance-orders.png"
+alt="Danh sách đơn bảo trì" />
+<figcaption aria-hidden="true">Danh sách đơn bảo trì</figcaption>
+</figure>
+<h3 data-number="6.7.2" id="màn-hình-chi-tiết-đơn-bảo-trì"><span
+class="header-section-number">6.7.2</span> 6.7.2 Màn hình chi tiết đơn
+bảo trì</h3>
+<p>Hiển thị:</p>
+<ul>
+<li>Thông tin khách hàng, hợp đồng, thang máy, ngày bảo trì.</li>
+<li>Trạng thái xử lý và người phụ trách.</li>
+<li>Nội dung công tác.</li>
+<li>Vật tư sử dụng và giá thành.</li>
+</ul>
+<p><strong>Logic nghiệp vụ áp dụng:</strong></p>
+<ul>
+<li>Quyền sửa:
+<ul>
+<li>Admin sửa toàn bộ.</li>
+<li>User chỉ sửa được đơn được gán cho chính mình.</li>
+</ul></li>
+<li>Trạng thái được phép cập nhật với User: <code>planned</code>,
+<code>in_progress</code>, <code>completed</code>.</li>
+<li>Khi Admin gán thêm user mới vào đơn:
+<ul>
+<li>Hệ thống chỉ gửi thông báo cho user mới được thêm.</li>
+<li>Tạo thông báo loại <code>maintenance_order_assigned</code>.</li>
+<li>Phát realtime và push browser (nếu đã subscribe).</li>
+</ul></li>
+<li>Khi đổi trạng thái đơn:
+<ul>
+<li>Trạng thái lịch định kỳ liên kết sẽ được cập nhật tương ứng
+(<code>planned/completed/cancelled</code>).</li>
+</ul></li>
+</ul>
+<figure>
+<img src="./screenshots/maintenance-order-detail.png"
+alt="Màn hình chi tiết đơn bảo trì" />
+<figcaption aria-hidden="true">Màn hình chi tiết đơn bảo
+trì</figcaption>
+</figure>
+<h2 data-number="6.8" id="thông-báo"><span
+class="header-section-number">6.8</span> 6.8 Thông báo</h2>
+<p><strong>Mục đích:</strong> cập nhật kịp thời các sự kiện quan trọng
+trong hệ thống.</p>
+<p><strong>Loại thông báo chính:</strong></p>
+<ul>
+<li>Nhắc lịch bảo trì định kỳ
+(<code>maintenance_schedule_upcoming</code>).</li>
+<li>Công việc bảo trì mới được giao
+(<code>maintenance_order_assigned</code>).</li>
+<li>Nhắc việc quá hạn (<code>maintenance_order_overdue</code>).</li>
+</ul>
+<p><strong>Thao tác thường dùng:</strong></p>
+<ul>
+<li>Lọc thông báo: tất cả/chưa đọc/đã đọc.</li>
+<li>Mở thông báo để đi nhanh đến công việc liên quan.</li>
+<li>Đánh dấu đã đọc từng thông báo hoặc toàn bộ.</li>
+<li>Xóa thông báo không còn cần thiết.</li>
+</ul>
+<figure>
+<img src="./screenshots/notifications.png" alt="Danh sách thông báo" />
+<figcaption aria-hidden="true">Danh sách thông báo</figcaption>
+</figure>
+<p><strong>Logic nghiệp vụ thông báo:</strong></p>
+<ul>
+<li>Job thông báo chạy 1 lần khi server khởi động và lặp mỗi 24
+giờ.</li>
+<li>Nhắc lịch sắp đến hạn:
+<ul>
+<li>Dựa trên cấu hình <code>MAINTENANCE_SCHEDULE_NOTIFY_DAYS</code> (mặc
+định 3 ngày).</li>
+<li>Người nhận: Admin + user được gán trong đơn của lịch đó.</li>
+</ul></li>
+<li>Nhắc việc quá hạn:
+<ul>
+<li>Áp dụng cho đơn có ngày hẹn &lt; hôm nay và trạng thái chưa hoàn
+tất.</li>
+<li>Người nhận: user được gán trên đơn.</li>
+</ul></li>
+<li>Chống gửi trùng:
+<ul>
+<li>Mỗi loại thông báo theo người dùng/lịch/ngày tham chiếu chỉ tạo 1
+lần.</li>
+</ul></li>
+</ul>
+<h2 data-number="6.9" id="quản-lý-user-chỉ-dành-cho-admin"><span
+class="header-section-number">6.9</span> 6.9 Quản lý User (chỉ dành cho
+Admin)</h2>
+<p><strong>Mục đích:</strong> quản trị tài khoản và phạm vi truy
+cập.</p>
+<p><strong>Thao tác thường dùng:</strong></p>
+<ul>
+<li>Tạo user mới.</li>
+<li>Cập nhật thông tin user.</li>
+<li>Xóa user.</li>
+<li>Kiểm tra vai trò (Quản trị viên/Người dùng).</li>
+<li>Kiểm tra số module được cấp quyền xem.</li>
+</ul>
+<figure>
+<img src="./screenshots/users.png" alt="Danh sách người dùng" />
+<figcaption aria-hidden="true">Danh sách người dùng</figcaption>
+</figure>
+<h1 data-number="7" id="quy-trình-vận-hành-đề-xuất"><span
+class="header-section-number">7</span> 7. Quy trình vận hành đề
+xuất</h1>
+<h2 data-number="7.1" id="quy-trình-tiếp-nhận-và-xử-lý-sự-cố"><span
+class="header-section-number">7.1</span> 7.1 Quy trình tiếp nhận và xử
+lý sự cố</h2>
+<ol type="1">
+<li>Tiếp nhận thông tin sự cố từ khách hàng.</li>
+<li>Tạo báo lỗi và gắn mức độ ưu tiên.</li>
+<li>Kiểm tra lịch bảo trì liên quan.</li>
+<li>Admin tạo/phân công đơn bảo trì.</li>
+<li>Kỹ thuật viên cập nhật tiến độ và kết quả.</li>
+<li>Đóng sự cố sau khi xác nhận hoàn tất.</li>
+</ol>
+<h2 data-number="7.2" id="quy-trình-kiểm-soát-định-kỳ"><span
+class="header-section-number">7.2</span> 7.2 Quy trình kiểm soát định
+kỳ</h2>
+<ol type="1">
+<li>Kiểm tra Dashboard đầu ngày.</li>
+<li>Rà soát thông báo chưa đọc.</li>
+<li>Theo dõi danh sách đơn đang thực hiện.</li>
+<li>Cuối tuần/tháng xuất báo cáo để đối soát nội bộ.</li>
+</ol>
+<h1 data-number="8" id="câu-hỏi-thường-gặp-faq"><span
+class="header-section-number">8</span> 8. Câu hỏi thường gặp (FAQ)</h1>
+<h2 data-number="8.1" id="không-thấy-nút-thêmsửaxóa"><span
+class="header-section-number">8.1</span> 8.1 Không thấy nút
+Thêm/Sửa/Xóa?</h2>
+<p>Tài khoản hiện tại không có quyền Admin cho chức năng đó. Liên hệ
+quản trị viên để được cấp quyền.</p>
+<h2 data-number="8.2" id="vì-sao-không-thấy-mục-công-việc-của-tôi"><span
+class="header-section-number">8.2</span> 8.2 Vì sao không thấy mục “Công
+việc của tôi”?</h2>
+<p>Bạn chưa được cấp quyền module tương ứng hoặc chưa được phân công đơn
+bảo trì.</p>
+<h2 data-number="8.3"
+id="đã-tạo-báo-lỗi-nhưng-không-thấy-trên-lịch"><span
+class="header-section-number">8.3</span> 8.3 Đã tạo báo lỗi nhưng không
+thấy trên lịch?</h2>
+<p>Báo lỗi chỉ hiển thị trên lịch khi có trường <strong>ngày
+hẹn</strong> (<code>scheduled_date</code>).</p>
+<h2 data-number="8.4" id="cách-đồng-bộ-lịch-sang-google-calendar"><span
+class="header-section-number">8.4</span> 8.4 Cách đồng bộ lịch sang
+Google Calendar?</h2>
+<p>Vào <strong>Lịch bảo trì</strong> → chọn <strong>Copy link chia
+sẻ</strong> → thêm lịch bằng URL trong Google Calendar.</p>
+<h1 data-number="9" id="đầu-mối-hỗ-trợ"><span
+class="header-section-number">9</span> 9. Đầu mối hỗ trợ</h1>
+<p>Khi gửi yêu cầu hỗ trợ, vui lòng cung cấp:</p>
+<ul>
+<li>Tên tài khoản đang sử dụng.</li>
+<li>Thời điểm phát sinh lỗi.</li>
+<li>Phân hệ gặp lỗi.</li>
+<li>Ảnh chụp màn hình/clip ngắn (nếu có).</li>
+</ul>
+<p>Thông tin đầy đủ sẽ giúp đội vận hành xử lý nhanh và chính xác
+hơn.</p>
+</body>
+</html>
